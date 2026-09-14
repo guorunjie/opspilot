@@ -1,6 +1,6 @@
 # Abrupt Demo process exit: evidence and remaining work
 
-`test/asyncDemoProcessExit.test.js` runs a real Node child against a temporary SQLite database and exits it without application cleanup at two durable boundaries: Task EXECUTING saved, and synthetic target saved before acknowledgement. The parent requires the exact child's exit code before using the existing explicit abandoned-owner release API.
+`test/asyncDemoProcessExit.test.js` runs a real Node child against a temporary SQLite database and exits it without application cleanup at three durable boundaries: Task EXECUTING saved, execution reservation saved, and synthetic target saved before acknowledgement. The parent requires the exact child's exit code before using the existing explicit abandoned-owner release API.
 
 Both shell and price ownership survive. A reopened composition refuses execution and reset. Recovery without a termination confirmation is rejected. Once the test supervisor has confirmed termination, the lower-level price recovery transitions to UNKNOWN and independent readback yields FAILED for an unchanged target or VERIFIED for a matching target. Submission count stays respectively zero or one; the task cannot execute again. This is synthetic target verification, not a real platform result.
 
@@ -9,6 +9,8 @@ This test is not a desktop recovery feature, an OS power-loss test, or permissio
 Next vertical slice must combine trusted application-instance ownership/termination evidence, a read-only interruption summary, explicit recovery confirmation, release of only the exact abandoned claims, UNKNOWN transition and readback, and continued rejection of duplicate execution. Cover a still-live competing instance, stale tokens, interrupted recovery itself and the separate reservation-before-START boundary. Preserve old archives and real-write isolation. Do not expose a generic unlock command to the renderer.
 
 Local baseline after adding these tests: 195 tests passed. Packaged GUI recovery and real-store validation remain incomplete.
+
+Development update: reservation now follows durable START, under the Agent's existing price ownership. A failed reservation checkpoint poisons the current handle; it cannot write or retry. Once that local operation has stopped, a reopened session can reconcile the unchanged target as FAILED, without submitting. Three abrupt child-exit cases and a reservation storage failure test pass; full local suite is 198 tests. This prevents new pre-START stranded reservations but does not migrate historical ones. Windows default source desktop regression passed all four price scenarios, approval/submission reopen, one submission per task, supplemental normal flows and reset cancel/confirm. A mismatch review viewport was visually checked. Immutable dev.4 installers are unchanged; packaged verification and user-facing recovery remain pending.
 
 ## Desktop instance prerequisite (development)
 

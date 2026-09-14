@@ -6,6 +6,30 @@ import path from 'node:path';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openAsyncPriceSession } from '../src/demo/asyncPriceSession.js';
 const products = [{ id: 'A', name: 'Synthetic A', price: 2000, target: 1800, cost: 1000, stock: 12 }];
+test('reservation failure follows durable START and cannot write or retry', async () => {
+  const store = openStateStore(':memory:', 'reservation-failure');
+  const wrapped = { read: store.read, save(key, value, revision) {
+    if (key === 'async-price:one' && value.scenario !== null) {
+      assert.equal(store.read('task:one').value.task.status, 'EXECUTING');
+      throw new Error('reservation storage failure');
+    }
+    return store.save(key, value, revision);
+  } };
+  try {
+    const session = openAsyncPriceSession({ store: wrapped, sessionId: 'one', products, create: true });
+    await prepare(session);
+    await assert.rejects(session.execute(), /reservation storage failure/);
+    await session.whenIdle();
+    assert.equal(session.snapshot().task.status, 'EXECUTING');
+    assert.equal(session.snapshot().platform.submissionCount, 0);
+    await assert.rejects(session.execute());
+    const reopened = openAsyncPriceSession({ store, sessionId: 'one', products });
+    await reopened.recover({ previousExecutorStopped: true });
+    await reopened.readback();
+    assert.equal(reopened.snapshot().task.status, 'FAILED');
+    assert.equal(reopened.snapshot().platform.submissionCount, 0);
+  } finally { store.close(); }
+});
 async function prepare(session) {
   await session.check(); const { task } = await session.preview();
   await session.confirm({ planId: task.plan.id, confirmed: true });

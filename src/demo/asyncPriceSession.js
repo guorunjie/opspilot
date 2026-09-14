@@ -76,7 +76,22 @@ export function openAsyncPriceSession({ store, sessionId, products, create = fal
         return createMockPriceConnector({ storeId: scope.storeId, prices: row.value.prices }).read(request);
       } }
   ]);
-  const agent = createAsyncTaskAgent({ ...task, ownership, gateway,
+  let selectedScenario = null;
+  const checkpoint = (next, previous) => {
+    task.checkpoint(next, previous);
+    if (previous.status === 'AWAITING_APPROVAL' && next.status === 'EXECUTING') {
+      // Reserve only after durable START. A crash or uncertain reservation now
+      // leaves a recoverable EXECUTING task, never a stranded approved plan.
+      const row = readPlatform();
+      if (row.value.submissionCount !== 0 || row.value.scenario !== null || selectedScenario === null)
+        throw new Error('Execution reservation conflict; reconcile instead');
+      const value = { ...row.value, scenario: selectedScenario };
+      const revision = store.save(platformKey, value, row.revision);
+      const saved = readPlatform();
+      if (saved.revision !== revision || !isDeepStrictEqual(saved.value, value)) throw new Error('Execution reservation uncertain');
+    }
+  };
+  const agent = createAsyncTaskAgent({ ...task, checkpoint, ownership, gateway,
     planner: { proposePlan: async () => ({ items: expectedItems }) },
     writeCapabilityId: 'price.write', readCapabilityId: 'price.read' });
   return Object.freeze({
@@ -90,10 +105,7 @@ export function openAsyncPriceSession({ store, sessionId, products, create = fal
       if (before.status !== 'AWAITING_APPROVAL' || !before.approval || before.run) throw new Error('Approved unexecuted plan required');
       const row = readPlatform();
       if (row.value.submissionCount !== 0 || row.value.scenario !== null) throw new Error('Execution already reserved; reconcile instead');
-      const value = { ...row.value, scenario };
-      const revision = store.save(platformKey, value, row.revision);
-      const saved = readPlatform();
-      if (saved.revision !== revision || !isDeepStrictEqual(saved.value, value)) throw new Error('Execution reservation uncertain');
+      selectedScenario = scenario;
       return agent.execute({ runId: randomUUID() });
     },
     readback: () => agent.verify(),
