@@ -14,7 +14,9 @@ npm test
 npm start
 ```
 
-保留默认安装脚本，以下载 Electron 运行时。当前锁定 Electron 42.7.0 和 electron-builder 26.8.1。Windows 本机完整依赖安装和 32 项测试已通过；这不等于全新机器、macOS 或生产环境验收。
+当前锁定 Electron 42.7.0 和 electron-builder 26.8.1。Electron 可能在首次 `npm start` 时才下载运行时，因此首次启动也需要网络；依赖安装成功不等于运行时已经就绪。Windows 本机完整依赖安装和 32 项测试已通过，GitHub 三平台单元测试也已通过；这不等于全新机器桌面体验、macOS 桌面或生产环境验收。
+
+具体范围见[验证记录](verification.md)。
 
 ## 完成一次经营演示
 
