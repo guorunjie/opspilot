@@ -26,4 +26,4 @@ const workflow = { version: 1, id: 'price-write', steps: [
 
 本机 `node scripts/verify-offline-browser.mjs --headed` 使用该执行器替代原硬编码点击/读文本：核对原价、填写目标、点击、独立读取，保留 8 条 SQLite 步骤事件，最终仅提交一次，并继续进行 CDP 采证。单元测试覆盖非法动作、缺失授权、歧义目标、授权撤销、日志失败与禁止重试。
 
-仍未接入普通用户安装版、生产 Connector 或 Recorder/Replay；不包含图形化 Workflow Builder（首版不做）。
+离线录制与回放见 [Recorder / Replay](workflow-recorder.md)。仍未接入普通用户安装版或生产 Connector；不包含图形化 Workflow Builder（首版不做）。

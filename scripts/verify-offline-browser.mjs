@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { openOfflineBrowser } from '../src/rpa/offlineBrowser.js';
 import { openPageCDP } from '../src/rpa/pageCDP.js';
 import { compileBrowserWorkflow, runBrowserWorkflow } from '../src/rpa/browserWorkflow.js';
+import { startWorkflowRecorder, workflowFromRecording } from '../src/rpa/workflowRecorder.js';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openPersistentTask } from '../src/storage/persistentTask.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
@@ -27,10 +28,11 @@ try {
   assert.equal(await page.evaluate(() => window.fixtureScriptRan), undefined);
   // Trusted harness installs synthetic behavior; HTML-provided scripts remain blocked.
   await page.evaluate(() => {
-    let count = 0;
     document.querySelector('#submit').addEventListener('click', () => {
+      const count = Number(document.querySelector('#count').dataset.count || 0) + 1;
       document.querySelector('#observed').textContent = document.querySelector('#price').value;
-      document.querySelector('#count').textContent = `提交次数：${++count}`;
+      document.querySelector('#count').dataset.count = String(count);
+      document.querySelector('#count').textContent = `提交次数：${count}`;
     });
   });
   console.log(await page.locator('body').ariaSnapshot());
@@ -38,11 +40,46 @@ try {
   assert.equal(await page.evaluate(async () => { try { await fetch('https://example.invalid/no-network'); return true; } catch { return false; } }), false);
   const task = openPersistentTask({ store, scope, create: true });
   const ownership = createTaskOwnership({ store, scope });
-  const writeWorkflow = { version: 1, id: 'price-write', steps: [
+  let writeWorkflow = { version: 1, id: 'price-write', steps: [
     { id: 'before', type: 'assertText', selector: '#observed', value: '2000' },
     { id: 'target', type: 'fill', selector: '#price', value: '1800' },
     { id: 'submit', type: 'click', selector: '#submit' }
   ] };
+  if (process.argv.includes('--recorded')) {
+    // Record explicit synthetic UI actions, then reset only this fresh fixture.
+    const recorder = await startWorkflowRecorder({ runtime, workflowId: 'recorded-price-write',
+      controls: [{ type: 'fill', selector: '#price' }, { type: 'click', selector: '#submit' }] });
+    await assert.rejects(startWorkflowRecorder({ runtime, workflowId: 'duplicate', controls: [{ type: 'click', selector: '#submit' }] }));
+    await page.getByRole('textbox', { name: '目标价格（分）' }).fill('1900');
+    await page.getByRole('textbox', { name: '目标价格（分）' }).fill('1800');
+    await page.getByRole('button', { name: '提交模拟价格', exact: true }).click();
+    const recording = await recorder.stop();
+    assert.deepEqual(recording.definition.steps.map(step => step.type), ['fill', 'click']);
+    assert.equal(recording.definition.steps[0].value, '1800');
+    await assert.rejects(recorder.stop(), /already stopped/);
+    assert.equal(recording.approval, undefined);
+    writeWorkflow = workflowFromRecording(recording);
+    await writeFile(path.join(output, 'recording.json'), JSON.stringify(recording, null, 2));
+    await page.evaluate(() => {
+      document.querySelector('#observed').textContent = '2000';
+      document.querySelector('#count').textContent = '提交次数：0';
+      document.querySelector('#count').dataset.count = '0';
+    });
+    // Password input is rejected before its value can become a recording.
+    await page.evaluate(() => { const input = document.createElement('input'); input.type = 'password'; input.id = 'private-input'; document.body.append(input); });
+    const privateRecorder = await startWorkflowRecorder({ runtime, workflowId: 'must-reject', controls: [{ type: 'fill', selector: '#private-input' }] });
+    console.log(await page.locator('body').ariaSnapshot());
+    await page.locator('#private-input').fill('synthetic-not-a-real-secret');
+    await assert.rejects(privateRecorder.stop(), /Sensitive/);
+    await page.evaluate(() => document.querySelector('#private-input').remove());
+    const cancelled = await startWorkflowRecorder({ runtime, workflowId: 'cancelled', controls: [{ type: 'fill', selector: '#price' }] });
+    await cancelled.cancel();
+    await assert.rejects(cancelled.stop(), /already stopped/);
+    const empty = await startWorkflowRecorder({ runtime, workflowId: 'empty', controls: [{ type: 'click', selector: '#submit' }] });
+    // An input outside the allowlist must not become a step.
+    await page.getByRole('textbox', { name: '目标价格（分）' }).fill('1800');
+    await assert.rejects(empty.stop());
+  }
   const readWorkflow = { version: 1, id: 'price-read', steps: [{ id: 'price', type: 'readText', selector: '#observed' }] };
   const writeDigest = compileBrowserWorkflow(writeWorkflow).digest;
   const journal = event => {
@@ -60,7 +97,7 @@ try {
       if (id === 'write') {
         assert.equal(saved.status, 'EXECUTING');
         const result = await runBrowserWorkflow({ runtime, workflow: writeWorkflow, context: request, signal,
-          preconditions: () => runtime.snapshot().status === 'OPEN',
+          preconditions: async () => runtime.snapshot().status === 'OPEN' && await page.locator('#observed').textContent() === '2000',
           authorize: ({ workflow, context }) => workflow.digest === writeDigest && context.planId === 'plan-1'
             && task.getTask().status === 'EXECUTING' && task.getTask().approval.planId === context.planId,
           onStep: journal });
@@ -86,7 +123,8 @@ try {
   assert.equal((await agent.verify()).task.status, 'VERIFIED');
   await assert.rejects(agent.execute({ runId: 'duplicate' }));
   assert.equal(await page.locator('#count').textContent(), '提交次数：1');
-  assert.equal(store.read('workflow-journal').value.length, 8);
+  const expectedJournalEvents = (writeWorkflow.steps.length + readWorkflow.steps.length) * 2;
+  assert.equal(store.read('workflow-journal').value.length, expectedJournalEvents);
   const cdp = await openPageCDP({ context: page.context(), page, simulated: true,
     scope: { namespace: scope.namespace, taskId: scope.id, planId: 'plan-1', runId: 'run-1', connectorId: scope.connectorId, storeId: scope.storeId } });
   const dom = await cdp.readDOM('#observed');
@@ -102,7 +140,8 @@ try {
   assert.equal((await runtime.close()).status, 'CLOSED');
   await assert.rejects(runtime.load('<p>must not reopen</p>'));
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ simulatedBrowserVerified: true, submittedBeforeVerified: true,
-    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, cdpDOMAndScreenshot: true, workflowJournalEvents: 8, database: path.join(root, 'tasks.sqlite'),
+    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, cdpDOMAndScreenshot: true,
+    recordedReplay: process.argv.includes('--recorded'), workflowJournalEvents: expectedJournalEvents, database: path.join(root, 'tasks.sqlite'),
     scope: 'Actual isolated Chromium + async Task + SQLite; not installed UI or real platform' }, null, 2));
   console.log('Offline browser async journey PASS');
 } finally { if (runtime) await runtime.close(); store.close(); }
