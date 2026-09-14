@@ -42,6 +42,10 @@ for (const point of ['started', 'reserved', 'target-written']) {
       store = openStateStore(file, 'crash-demo');
       const demo = createAsyncStoreDemo({ store });
       const before = demo.snapshot();
+      assert.equal(before.recovery.required, true);
+      assert.equal(before.recovery.canRecover, false);
+      assert.equal(before.recovery.reason, 'EXECUTOR_UNCONFIRMED');
+      assert.equal(JSON.stringify(before.recovery).includes('token'), false);
       assert.equal(before.task.status, 'EXECUTING');
       assert.equal(before.review, null);
       assert.equal(before.submissionCount, point === 'target-written' ? 1 : 0);
@@ -64,6 +68,7 @@ for (const point of ['started', 'reserved', 'target-written']) {
       assert.equal(price.snapshot().platform.submissionCount, before.submissionCount);
       await assert.rejects(price.execute(), /Approved unexecuted/);
       assert.equal(createAsyncStoreDemo({ store }).snapshot().task.status, price.snapshot().task.status);
+      assert.equal(createAsyncStoreDemo({ store }).snapshot().recovery.required, false);
     } finally {
       store?.close();
       rmSync(root, { recursive: true });

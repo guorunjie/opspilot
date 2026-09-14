@@ -39,14 +39,24 @@ export function createAsyncStoreDemo({ store }) {
       }
     } finally { shellOwner.release(token); }
   }
-  let sessionId = read().value.sessionId, price = open(sessionId), pending = null;
+  let sessionId = read().value.sessionId, price = open(sessionId), pending = null, localShellToken = null;
   const current = () => {
     const row = read();
     if (row.value.sessionId !== sessionId) throw new Error('Demo session changed; reopen before continuing');
     return row;
   };
-  const snapshot = () => ({ ...projectAsyncPriceView(price.snapshot()),
-    supplemental: structuredClone(current().value.supplemental), opportunityCatalog: supplementalCatalog() });
+  const snapshot = () => {
+    const view = projectAsyncPriceView(price.snapshot());
+    const shellToken = shellOwner.inspect()?.token;
+    const priceToken = createTaskOwnership({ store, scope: view.task }).inspect()?.token;
+    const foreignOwner = Boolean((shellToken && shellToken !== localShellToken) || (priceToken && !localShellToken));
+    const interrupted = !localShellToken && ['EXECUTING', 'VERIFYING'].includes(view.task.status);
+    const blocked = foreignOwner || interrupted;
+    return { ...view, recovery: { required: blocked, canRecover: false,
+      reason: foreignOwner ? 'EXECUTOR_UNCONFIRMED' : interrupted ? 'INTERRUPTED_TASK' : null,
+      message: blocked ? '已有操作尚未完成核对，暂不能确认原执行已停止。请保留记录，不要重复执行、复位或手工解锁；当前版本尚无安全恢复入口。' : null },
+      supplemental: structuredClone(current().value.supplemental), opportunityCatalog: supplementalCatalog() };
+  };
   const commands = {
     async diagnose() {
       const task = price.snapshot().task;
@@ -82,8 +92,9 @@ export function createAsyncStoreDemo({ store }) {
     ...Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, (...args) => {
       if (pending) return Promise.reject(new Error('演示操作仍在进行，请勿重复执行或复位。'));
       const token = shellOwner.acquire(shellTask);
+      localShellToken = token;
       const operation = Promise.resolve().then(() => { current(); return command(...args); });
-      const drain = async () => { await price.whenIdle(); shellOwner.release(token); };
+      const drain = async () => { await price.whenIdle(); shellOwner.release(token); localShellToken = null; };
       pending = operation.then(drain, drain);
       pending.then(() => { pending = null; }, () => { /* Keep fence on unconfirmed termination/release. */ });
       return operation;

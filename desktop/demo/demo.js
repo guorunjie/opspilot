@@ -180,6 +180,10 @@ function render() {
   if (unavailable) text('review', '模拟平台暂时无法回读；尚无可核实的目标价格。请再次核对，不要重新执行。');
   $("reset").disabled = busy;
   renderSupplemental();
+  if (state.recovery?.required) {
+    text('status', state.recovery.message);
+    document.querySelectorAll('button, input, select').forEach(element => { element.disabled = true; });
+  }
 }
 async function command(name, input) {
   if (busy) return;
