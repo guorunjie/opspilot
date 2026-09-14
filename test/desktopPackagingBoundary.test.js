@@ -32,6 +32,7 @@ const EXPECTED_FILES = [
   'src/storage/persistentTask.js',
   'src/storage/taskOwnership.js',
   'src/storage/localExecutorIdentity.js',
+  'src/storage/executorPresence.js',
   'src/demo/supplementalOpportunities.js',
   'src/demo/validateDemoState.js',
   'src/verification/verifyTargetState.js',

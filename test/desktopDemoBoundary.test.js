@@ -71,6 +71,35 @@ test('secondary launch exits before readiness, browser session, database or IPC 
   assert.deepEqual(paths, [['userData', path.resolve('output/test-app-data/opspilot-open-core/desktop-runtime')]]);
 });
 
+for (const answer of [0, 1]) test(`desktop recovery requires main-process dialog answer ${answer}, ignoring renderer proof`, async t => {
+  let handler, resolveDialog, recovered = 0;
+  class Window {
+    constructor() { this.webContents = { mainFrame: {}, setWindowOpenHandler() {}, on() {} }; }
+    async loadFile() {}
+  }
+  const result = await startOfflineDemo({
+    app: { getPath: () => path.resolve('output/test-app-data'), setName() {}, setPath() {}, requestSingleInstanceLock: () => true,
+      commandLine: { appendSwitch() {} }, whenReady: async () => {}, on() {}, quit() {} },
+    BrowserWindow: Window,
+    ipcMain: { handle: (_, fn) => { handler = fn; }, removeHandler() {} },
+    session: { fromPartition: () => ({ webRequest: { onBeforeRequest() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) },
+    dialog: { showMessageBox: (_window, options) => {
+      assert.equal(options.defaultId, 0); assert.equal(options.cancelId, 0);
+      return new Promise(resolve => { resolveDialog = resolve; });
+    } }
+  }, () => ({ snapshot: () => ({ recovery: { canRecover: true }, recovered }),
+    recover: input => { assert.deepEqual(input, { confirmed: true }); recovered++; return { recovered }; } }));
+  t.after(() => fs.rm(result.cache, { recursive: true, force: true }));
+  const event = { sender: result.window.webContents, senderFrame: result.window.webContents.mainFrame };
+  const operation = handler(event, 'recover', { confirmed: true, previousExecutorStopped: true, token: 'injected' });
+  await Promise.resolve();
+  assert.equal(recovered, 0);
+  assert.throws(() => handler(event, 'recover'), /仍在进行/);
+  assert.equal(handler(event, 'snapshot').recovered, 0);
+  resolveDialog({ response: answer }); await operation;
+  assert.equal(recovered, answer);
+});
+
 for (const responseFailure of [true, false]) for (const confirmedIdle of [true, false]) test(`desktop response failure=${responseFailure}; idle confirmation=${confirmedIdle}`, async t => {
   let handler, completePreview, markIdle, rejectIdle;
   const listeners = {};

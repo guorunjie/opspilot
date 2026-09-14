@@ -44,6 +44,31 @@ test('invalid executor metadata is rejected without changing a claim', () => fix
   assert.throws(() => owner.acquire(task), /executor/);
   assert.deepEqual(a.read('owner:t'), before);
 }));
+test('abandoned takeover requires a fresh exact claim and synchronous proof, and never unlocks', () => fixture((a, b) => {
+  const executor = { pid: process.pid, instanceId: randomUUID(), hostId: randomUUID() };
+  const owner = createTaskOwnership({ store: a, scope, executor });
+  const competitor = createTaskOwnership({ store: b, scope, executor });
+  const token = owner.acquire(task), expected = owner.inspect();
+  assert.throws(() => competitor.takeOverAbandoned({ expected, confirmStopped: async () => true }), /synchronous/);
+  assert.throws(() => competitor.takeOverAbandoned({ expected, confirmStopped: () => false }), /termination/);
+  assert.equal(owner.inspect().token, token);
+  const next = competitor.takeOverAbandoned({ expected, confirmStopped: () => {
+    assert.throws(() => owner.acquire(task), /owned/); return true;
+  } });
+  assert.notEqual(next, token);
+  assert.throws(() => owner.release(token), /mismatch/);
+  assert.throws(() => owner.takeOverAbandoned({ expected, confirmStopped: () => assert.fail('stale proof') }), /changed/);
+  assert.throws(() => owner.acquire(task), /owned/);
+  competitor.release(next);
+  const changedToken = owner.acquire(task), stale = owner.inspect();
+  let replacement;
+  assert.throws(() => competitor.takeOverAbandoned({ expected: stale, confirmStopped: () => {
+    owner.release(changedToken); replacement = owner.acquire(task); return true;
+  } }), /revision conflict/);
+  assert.equal(owner.inspect().token, replacement);
+  owner.release(replacement);
+}));
+
 function fixture(run) {
   const root = mkdtempSync(path.join(tmpdir(), 'core-owner-')); const file = path.join(root, 'tasks.sqlite');
   const a = openStateStore(file, 'tasks'), b = openStateStore(file, 'tasks');

@@ -6,7 +6,7 @@ const { randomUUID } = require("node:crypto");
 
 // Separate Electron entry: never import main.cjs, production preload, server,
 // config loaders or platform adapters. A fresh cache is not a real store profile.
-async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, createDemo) {
+async function startOfflineDemo({ app, BrowserWindow, ipcMain, session, dialog }, createDemo) {
   const dataDir = path.join(app.getPath('appData'), 'opspilot-open-core', 'offline-demo');
   app.setName("OpsPilot 离线演示");
   // Stable Core-only identity: a random userData path would give each launch
@@ -52,7 +52,20 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
     preview: async () => { await demo.preview(); return demo.snapshot(); },
     confirm: (input) => demo.confirm(input), execute: (input) => demo.execute(input),
     readback: () => demo.readback(), reset: input => demo.reset(input),
-    opportunity: input => demo.opportunity(input)
+    opportunity: input => demo.opportunity(input),
+    recover: async () => {
+      if (typeof demo.recover !== 'function' || demo.snapshot().recovery?.canRecover !== true)
+        throw new Error('当前记录无法安全恢复，请保留记录。');
+      const answer = await dialog.showMessageBox(window, { type: 'warning',
+        buttons: ['取消', '恢复待核实记录'], defaultId: 0, cancelId: 0,
+        title: '确认恢复离线演示',
+        message: '恢复仅处理已停止的本机模拟任务，不会重新提交。',
+        detail: '中断任务将标记为结果未知。恢复后请点击“核对模拟平台结果”，取得回读证据后再判断结果。不会影响真实门店。' });
+      // Never accept renderer-supplied termination proof or confirmation.
+      // Recheck ownership and process presence after the native dialog closes.
+      if (answer.response !== 1) return demo.snapshot();
+      return demo.recover({ confirmed: true });
+    }
   };
   let pending = null, quitRequested = false;
   ipcMain.handle("opspilot-demo:command", (event, command, input) => {

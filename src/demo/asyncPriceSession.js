@@ -6,7 +6,7 @@ import { openPersistentTask } from '../storage/persistentTask.js';
 import { createTaskOwnership } from '../storage/taskOwnership.js';
 import { createMockPriceConnector } from '../connector/mockPriceConnector.js';
 import { createRulePricePlanner } from '../domain/model/pricePlanning.js';
-import { createTask } from '../task/taskState.js';
+import { createTask, advanceTask } from '../task/taskState.js';
 
 // An application-owned async price slice. It does not mutate legacy Demo
 // records or select a production connector from user input.
@@ -110,6 +110,18 @@ export function openAsyncPriceSession({ store, sessionId, products, create = fal
     },
     readback: () => agent.verify(),
     recover: input => agent.recover(input),
+    recoverAbandoned({ expected, confirmStopped } = {}) {
+      // Trusted composition only. No gateway invocation and no renderer proof.
+      const before = task.getTask();
+      const token = ownership.takeOverAbandoned({ expected, confirmStopped });
+      let reconciled = false;
+      try {
+        ownership.assertHeld(token, before);
+        if (['EXECUTING', 'VERIFYING'].includes(before.status))
+          task.checkpoint(advanceTask(before, { type: 'INTERRUPT' }), before);
+        const result = task.getTask(); reconciled = true; return result;
+      } finally { if (reconciled) ownership.release(token); }
+    },
     whenIdle: () => agent.whenIdle()
   });
 }

@@ -2,9 +2,9 @@
 
 ## Current scope
 
-These are development changes after the immutable `v0.1.0-dev.4` release, not an installed-version upgrade or completed desktop recovery feature. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
+These are development changes after the immutable `v0.1.0-dev.4` release, not an installed-version upgrade. The source desktop now has a scoped recovery path; packaged and macOS recovery acceptance remain pending. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
 
-The desktop records an installation identity and the owning process for new asynchronous Demo claims. It explains unresolved ownership and disables mutation controls, but does **not** automatically release abandoned claims or expose a recovery/unlock command.
+The desktop records an installation identity and the owning process for new asynchronous Demo claims. It explains unresolved ownership and disables mutation controls. When every held claim belongs to a confirmed absent process on this installation, it offers **恢复待核实记录（不重新提交）**. This is not an automatic or generic unlock.
 
 ## Implemented boundaries
 
@@ -16,25 +16,31 @@ The desktop records an installation identity and the owning process for new asyn
 
 An installation UUID is not hardware attestation. Do not export its file with Demo databases: copying both defeats host separation. Filesystem preflight is not protection against hostile concurrent path replacement. The Electron lock does not cover older binaries or arbitrary non-Electron writers, and alone never authorizes releasing claims.
 
-## Presence inspection is not recovery authorization
+## Presence inspection and explicit recovery
 
-`inspectExecutorPresence` is a source-only prerequisite, not yet wired into the desktop or its package. It probes only validated same-host identities with signal zero. Only ESRCH produces ABSENT. A successful presence check produces PRESENT; mismatched hosts, permission errors, unexpected returns or asynchronous probes produce UNKNOWN. A reused live PID conservatively blocks recovery.
+`inspectExecutorPresence` is wired into the trusted Demo composition and included in the desktop package. It probes only validated same-host identities with signal zero. Only ESRCH produces ABSENT. A successful presence check produces PRESENT; mismatched hosts, permission errors, unexpected returns or asynchronous probes produce UNKNOWN. A reused live PID conservatively blocks recovery.
 
 This evidence is limited to same-process offline work. It does not establish termination of spawned workers, browser children or remote/production operations. Neither elapsed time nor a user's confirmation alone proves termination.
 
+The main process opens a native confirmation dialog with cancellation as the default. It ignores renderer-supplied confirmation, tokens and termination assertions. After confirmation, the composition checks current claims and process presence again. Each exact abandoned claim is replaced with the current executor's claim by a conditional atomic write, without an unlocked gap. Shell ownership encloses price reconciliation; EXECUTING/VERIFYING transitions to UNKNOWN without invoking a gateway. Completed task states are preserved. Recovery itself never submits or reads a target; the user then requests independent readback through the usual button.
+
+A changed claim or uncertain write acknowledgement fails closed. Uncertain recovery checkpoints retain claims; the poisoned handle requires reopening, and a still-live recovery process cannot be taken over. A crash between shell takeover, price takeover and the UNKNOWN checkpoint can be reconciled on a later launch. Interrupted tasks missing price ownership proof, legacy/foreign claims and live processes remain blocked. Do not manually edit ownership records.
+
 ## Verified development evidence
 
-- Full local suite: **207 tests passed**. Identity tests cover persistence, fresh instances, independent installation directories, corruption preservation, hard-link rejection and caller-alias isolation. Composition tests inspect acquired shell/price/reset claims and confirm identities are omitted from snapshots.
+- Full local suite: **218 tests passed**. Identity tests cover persistence, fresh instances, independent installation directories, corruption preservation, hard-link rejection and caller-alias isolation. Composition tests inspect acquired shell/price/reset claims and confirm identities are omitted from snapshots.
 - `test/asyncDemoProcessExit.test.js` exits a real Node child without cleanup at three durable boundaries: Task START, scenario reservation, and synthetic target write before acknowledgement. Both claims survive; reopen refuses execution/reset. Only after the supervisor observes that exact child's termination does the test invoke lower-level reconciliation. Recovery moves the task to UNKNOWN; independent readback yields FAILED for the unchanged target or VERIFIED for a matching synthetic target. Submission counts remain zero or one and execution cannot repeat.
 - Windows **source Electron** regression passed all four price scenarios, approval/submission close-and-reopen preservation, normal supplemental inventory/campaign flows, and reset cancel/confirm. The mismatch review viewport was visually checked: FAILED, expected 18 versus observed 20, submission count one.
 - Windows source two-process testing passed: secondary exit zero, primary window restored, forwarded execution arguments ignored, unchanged snapshot, and normal reopen reacquiring the lock.
-- A synthetic unreleased legacy claim produced the recovery banner, disabled mutation controls, and unchanged SQLite rows/revisions. This tests the blocked-state explanation, not a recovery action.
-- `npm run desktop:pack` completed for Windows x64. All 30 non-manifest allowlisted source files were extracted from the actual ASAR and matched local bytes, including the identity loader and its dependencies. This is package-content verification, **not packaged runtime or installer acceptance** for these changes.
+- A synthetic unreleased legacy claim produced the recovery banner, disabled mutation controls, and unchanged SQLite rows/revisions. This tests the blocked-state explanation, not legacy recovery.
+- `test/asyncDemoRecovery.test.js` verifies bound dead-process recovery at START/reservation/target-write, a second crash at shell takeover/price takeover/UNKNOWN checkpoint, refusal of live/foreign/legacy claims, and retained claims after a lost checkpoint acknowledgement. Ownership tests reject stale tokens, asynchronous or false proof, and a claim changed during proof. Desktop boundary tests exercise native dialog cancellation/confirmation, mutation fencing during the dialog and rejection of renderer proof.
+- Windows source Electron was force-terminated at START, reservation and synthetic target write in an isolated test composition. The default desktop entry then reopened the records, offered recovery, preserved them on cancellation, moved interrupted tasks to UNKNOWN on confirmation, preserved that state across another restart, and independently read back FAILED/count 0, FAILED/count 0 and VERIFIED/count 1 respectively. The ready/review viewports were inspected. Dialog answers were controlled by the test: native dialog rendering and human interaction are **not** verified by this test. The initial experiment with Electron's graceful exit request let execution finish, so it was rejected as crash evidence and replaced with force termination.
+- `npm run desktop:pack` completed for Windows x64. All 31 non-manifest allowlisted source files were extracted from the actual ASAR and matched local bytes. This is package-content verification, **not packaged runtime or installer acceptance** for these changes.
 
 Tests use independent temporary data; the existing local installation and its reviews were not upgraded or reset. These results do not establish macOS acceptance for the new identity integration, OS power-loss durability, non-developer usability or real-platform execution.
 
 ## Next required vertical slice
 
-Implement main-process-only recovery authority and explicit user confirmation, with fresh identity/presence and exact-token checks, interruption-safe reconciliation, an UNKNOWN transition and independent readback. Never expose generic unlock or trust a renderer-provided termination Boolean. Cover a live competing executor, unknown/foreign/legacy identities, stale tokens, a crash during recovery, and historical pre-START reservations. Preserve archives and reject duplicate execution throughout.
+Verify actual packaged Windows and macOS recovery behavior and native confirmation interaction. Extend acceptance to interrupted readback and additional storage-failure boundaries. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
 
-Then verify actual packaged Windows and macOS behavior and an abrupt desktop-process exit. Until those checks pass, safe desktop recovery remains incomplete.
+Until the remaining checks pass, do not claim full desktop recovery acceptance or upgrade the immutable dev.4 release in place.

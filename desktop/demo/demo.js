@@ -180,9 +180,12 @@ function render() {
   if (unavailable) text('review', '模拟平台暂时无法回读；尚无可核实的目标价格。请再次核对，不要重新执行。');
   $("reset").disabled = busy;
   renderSupplemental();
+  $('recover').hidden = !state.recovery?.required;
+  $('recover').disabled = true;
   if (state.recovery?.required) {
     text('status', state.recovery.message);
     document.querySelectorAll('button, input, select').forEach(element => { element.disabled = true; });
+    $('recover').disabled = busy || state.recovery.canRecover !== true;
   }
 }
 async function command(name, input) {
@@ -201,7 +204,7 @@ async function command(name, input) {
   busy = false; render();
 }
 $("consent").addEventListener("change", render);
-for (const name of ["diagnose", "preview", "readback"]) $(name).addEventListener("click", () => command(name));
+for (const name of ["diagnose", "preview", "readback", "recover"]) $(name).addEventListener("click", () => command(name));
 $("confirm").addEventListener("click", () => command("confirm", { previewId: state.preview?.id, confirmed: $("consent").checked }));
 $("execute").addEventListener("click", () => command("execute", { scenario: $("scenario").value }));
 $("reset").addEventListener("click", () => { if (window.confirm("复位将清除本次模拟记录，不影响真实门店。继续吗？")) command("reset", { confirmed: true }); });

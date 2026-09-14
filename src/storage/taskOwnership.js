@@ -65,6 +65,16 @@ export function createTaskOwnership({ store, scope, executor = null }) {
       if (!token || read()?.value.token !== token) throw new Error('Task ownership lost');
     },
     release,
+    takeOverAbandoned({ expected, confirmStopped } = {}) {
+      if (!executorIdentity || !expected?.token || expected.version !== 2 || typeof confirmStopped !== 'function')
+        throw new Error('Bound abandoned ownership required');
+      const row = read();
+      if (!isDeepStrictEqual(row?.value, expected)) throw new Error('Ownership changed before recovery');
+      if (sync(confirmStopped(structuredClone(row.value.executor))) !== true)
+        throw new Error('Confirmed executor termination required');
+      // Replace the exact claim in one CAS. Never expose an unlocked gap.
+      const token = randomUUID(); save(token, row); return token;
+    },
     releaseAbandoned({ token, executorStopped } = {}) {
       if (executorStopped !== true) throw new Error('Confirmed executor termination required');
       release(token);

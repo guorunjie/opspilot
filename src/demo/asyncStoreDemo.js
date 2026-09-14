@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { createTask } from '../task/taskState.js';
 import { createTaskOwnership } from '../storage/taskOwnership.js';
+import { inspectExecutorPresence } from '../storage/executorPresence.js';
 import { createOfflineStoreDemo } from './offlineStoreDemo.js';
 import { openAsyncPriceSession } from './asyncPriceSession.js';
 import { projectAsyncPriceView } from './asyncPriceView.js';
@@ -53,10 +54,41 @@ export function createAsyncStoreDemo({ store, executor = null }) {
     const foreignOwner = Boolean((shellToken && shellToken !== localShellToken) || (priceToken && !localShellToken));
     const interrupted = !localShellToken && ['EXECUTING', 'VERIFYING'].includes(view.task.status);
     const blocked = foreignOwner || interrupted;
-    return { ...view, recovery: { required: blocked, canRecover: false,
-      reason: foreignOwner ? 'EXECUTOR_UNCONFIRMED' : interrupted ? 'INTERRUPTED_TASK' : null,
-      message: blocked ? '已有操作尚未完成核对，暂不能确认原执行已停止。请保留记录，不要重复执行、复位或手工解锁；当前版本尚无安全恢复入口。' : null },
+    const canRecover = blocked && recoveryClaims() !== null;
+    return { ...view, recovery: { required: blocked, canRecover,
+      reason: canRecover ? 'RECOVERY_AVAILABLE' : foreignOwner ? 'EXECUTOR_UNCONFIRMED' : interrupted ? 'INTERRUPTED_TASK' : null,
+      message: blocked ? (canRecover ? '已确认本机原模拟执行进程停止。可确认恢复待核实记录，再回读结果；不会重新提交，也不会自动报告成功。'
+        : '已有操作尚未完成核对，暂不能确认原执行已停止。请保留记录，不要重复执行、复位或手工解锁。') : null },
       supplemental: structuredClone(current().value.supplemental), opportunityCatalog: supplementalCatalog() };
+  };
+  const stopped = identity => !!executor && inspectExecutorPresence(identity, executor.hostId).status === 'ABSENT';
+  const recoveryClaims = () => {
+    if (!executor || pending || localShellToken) return null;
+    current();
+    const task = price.snapshot().task;
+    const shell = shellOwner.inspect();
+    const priceClaim = createTaskOwnership({ store, scope: task }).inspect();
+    const held = [shell, priceClaim].filter(claim => claim?.token);
+    if (!held.length || held.some(claim => claim.version !== 2 || !stopped(claim.executor))) return null;
+    if (['EXECUTING', 'VERIFYING'].includes(task.status) && !priceClaim?.token) return null;
+    return { shell, price: priceClaim };
+  };
+  const recover = ({ confirmed } = {}) => {
+    if (confirmed !== true) throw new Error('必须明确确认恢复待核实记录。');
+    const claims = recoveryClaims();
+    if (!claims) throw new Error('无法确认原执行停止；保留记录，不执行恢复。');
+    const token = claims.shell?.token
+      ? shellOwner.takeOverAbandoned({ expected: claims.shell, confirmStopped: stopped })
+      : shellOwner.acquire(shellTask);
+    localShellToken = token;
+    let reconciled = false;
+    try {
+      current();
+      if (claims.price?.token) price.recoverAbandoned({ expected: claims.price, confirmStopped: stopped });
+      const result = snapshot(); reconciled = true; return result;
+    } finally {
+      try { if (reconciled) shellOwner.release(token); } finally { localShellToken = null; }
+    }
   };
   const commands = {
     async diagnose() {
@@ -89,7 +121,7 @@ export function createAsyncStoreDemo({ store, executor = null }) {
       return snapshot();
     }
   };
-  return Object.freeze({ snapshot, whenIdle: () => pending ?? price.whenIdle(),
+  return Object.freeze({ snapshot, recover, whenIdle: () => pending ?? price.whenIdle(),
     ...Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, (...args) => {
       if (pending) return Promise.reject(new Error('演示操作仍在进行，请勿重复执行或复位。'));
       const token = shellOwner.acquire(shellTask);
