@@ -43,3 +43,5 @@ dev.4 开发新增[独立持久化 Task 适配器](persistent-task.md)，为执�
 dev.4 还新增[异步 Task Agent 编排](async-task-agent.md)：模拟能力可异步执行，超时结果保持 UNKNOWN，原调用未结束前保留 SQLite 所有权、禁止其他合规实例继续操作，迟到响应不能安装成功状态。已有跨连接及真实子进程争用测试；尚未接入桌面、RPA 或宿主级执行者终止核验，不替代上述完整异步 Runtime 的剩余验收。
 
 RPA 抽取已开始：[浏览器恢复逻辑](browser-recovery.md)复用既有恢复阶梯并修正未知状态与审计异常的重试边界。仅完成函数级检查，浏览器生命周期、CDP、实际离线页面执行与商业仓依赖接入仍待完成。
+
+新增[隔离浏览器 Runtime](offline-browser.md)及独立开发验收脚本：本机真实 Chromium 合成页面已通过异步 Task 的确认、单次点击、独立回读与关闭检查。该正常开发链路未接入安装版；浏览器中断恢复、CDP、Recorder/Replay 与商业仓依赖仍待继续。
