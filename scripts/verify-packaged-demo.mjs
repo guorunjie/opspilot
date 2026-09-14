@@ -6,6 +6,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { once } from 'node:events';
 import { installRecoveryCrashProbe } from './recoveryCrashProbe.mjs';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { openStateStore } from '../src/storage/sqliteStateStore.js';
+import { createOfflineStoreDemo } from '../src/demo/offlineStoreDemo.js';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'CI only, never silently skip');
 assert.equal(process.env.CI, 'true');
@@ -263,7 +267,78 @@ async function recoveryRun(point) {
   return { point, status, submissionCount: count, crashExit: exit };
 }
 
+async function legacyUpgradeRun() {
+  // Before the first launch only: create synthetic old data in the ephemeral
+  // runner's default appData, never replace/move/delete an existing profile.
+  const appData = process.platform === 'win32' ? process.env.APPDATA : path.join(homedir(), 'Library/Application Support');
+  assert.ok(appData && path.isAbsolute(appData));
+  const coreRoot = path.join(appData, 'opspilot-open-core');
+  assert.equal(existsSync(coreRoot), false, 'Refuse an existing Core profile, even in CI');
+  const dataDir = path.join(coreRoot, 'offline-demo');
+  await mkdir(dataDir, { recursive: true });
+  assert.equal(await realpath(dataDir), path.join(await realpath(appData), 'opspilot-open-core', 'offline-demo'));
+  const store = openStateStore(path.join(dataDir, 'pharmacy.sqlite'), 'offline-demo');
+  let original, originalRow;
+  try {
+    const old = createOfflineStoreDemo({ store }); old.diagnose();
+    const plan = old.preview(); old.confirm({ previewId: plan.id, confirmed: true });
+    for (const kind of ['inventory', 'campaign']) {
+      old.opportunity({ kind, operation: 'preview' });
+      old.opportunity({ kind, operation: 'confirm', planId: old.snapshot().supplemental[kind].task.plan.id, confirmed: true });
+      old.opportunity({ kind, operation: 'execute', scenario: 'normal' });
+      if (kind === 'campaign') old.opportunity({ kind, operation: 'readback' });
+    }
+    original = old.snapshot(); originalRow = store.read('pharmacy-session');
+  } finally { store.close(); }
+  await open();
+  assert.equal(await app.evaluate(({ app }) => app.getPath('appData')), appData);
+  const before = await snapshot();
+  assert.equal(before.legacyUpgrade?.available, true);
+  const { legacyUpgrade, legacyArchive, ...legacyState } = before;
+  assert.deepEqual(legacyState, original);
+  assert.equal(legacyArchive, null);
+  assert.equal(original.task.status, 'AWAITING_APPROVAL');
+  assert.equal(original.supplemental.inventory.task.status, 'SUBMITTED');
+  assert.equal(original.supplemental.campaign.task.status, 'VERIFIED');
+  console.log(await page.locator('body').ariaSnapshot());
+  await page.screenshot({ path: path.join(output, 'legacy-upgrade-before.png') });
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 0 }); });
+  await button('保留旧记录并开始新版演示').click();
+  assert.deepEqual(await snapshot(), before);
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1 }); });
+  await button('保留旧记录并开始新版演示').click();
+  await page.waitForFunction(() => !document.querySelector('#legacy-archive').hidden);
+  const upgraded = await snapshot();
+  assert.deepEqual(upgraded.legacyArchive, original);
+  assert.equal(upgraded.legacyUpgrade, null);
+  assert.equal(upgraded.diagnosis, null); assert.equal(upgraded.task.approval, null);
+  assert.equal(upgraded.submissionCount, 0); assert.deepEqual(upgraded.supplemental, {});
+  await page.getByText('查看旧版演示存档（只读）', { exact: true }).click();
+  assert.equal(await page.locator('#legacy-archive button').count(), 0);
+  await page.screenshot({ path: path.join(output, 'legacy-upgrade-archive.png') });
+  await reopen(upgraded);
+  await assert.rejects(() => page.evaluate(planId => window.opspilotDemo.command('confirm', { previewId: planId, confirmed: true }), original.preview.id));
+  assert.deepEqual(await snapshot(), upgraded);
+  await button('运行演示诊断').click(); await button('查看跟价预览').click();
+  await page.getByRole('checkbox').check(); await button('确认本次预览').click();
+  await button('执行模拟操作').click(); await waitText('#action-state', 'SUBMITTED');
+  await button('核对模拟平台结果').click(); await waitText('#action-state', 'VERIFIED');
+  const reviewed = await snapshot();
+  assert.equal(reviewed.submissionCount, 1); assert.deepEqual(reviewed.legacyArchive, original);
+  await resetDialog(true); await waitText('#action-state', '尚未确认。');
+  const reset = await snapshot(); assert.deepEqual(reset.legacyArchive, original);
+  await reopen(reset); await close();
+  const check = openStateStore(path.join(dataDir, 'pharmacy.sqlite'), 'offline-demo');
+  try { assert.deepEqual(check.read('pharmacy-session').value.legacyArchive, originalRow); }
+  finally { check.close(); }
+  assert.deepEqual(errors, []);
+  return { archivedStatuses: ['AWAITING_APPROVAL', 'SUBMITTED', 'VERIFIED'], cancelPreserved: true,
+    archivePreserved: true, restartPreserved: true, oldApprovalRejected: true,
+    newTaskStatus: 'VERIFIED', submissionCount: 1, resetPreservedArchive: true };
+}
+
 try {
+  const legacyUpgrade = await legacyUpgradeRun();
   const scenarios = [];
   for (const scenario of ['normal', 'response_lost', 'mismatch', 'readback_unavailable']) scenarios.push(await scenarioRun(scenario));
   const supplemental = [];
@@ -273,7 +348,8 @@ try {
   const recovery = [];
   for (const point of ['started', 'reserved', 'written', 'verify-started', 'verify-saved']) recovery.push(await recoveryRun(point));
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ version: expectedVersion,
-    platform: process.platform, arch: process.arch, scenarios, supplemental, supplementalResetRepeat: true, recovery,
+    platform: process.platform, arch: process.arch, scenarios, supplemental, supplementalResetRepeat: true, recovery, legacyUpgrade,
+    legacyUpgradeScope: 'Synthetic v3 fixture before first launch in an absent ephemeral CI profile; actual installed executable; native dialog answers controlled. Not an old-binary upgrade, native human interaction or arbitrary legacy-format acceptance.',
     recoveryScope: 'Owned packaged process force-terminated after SQLite writes using a test-only injected probe; recovery dialog answers controlled, not native dialog interaction or OS power-loss acceptance.',
     scope: 'Actual packaged app UI in ephemeral CI; not interactive installer, clean end-user machine, Gatekeeper/notarization or real-platform acceptance' }, null, 2) + '\n');
 } finally { await close(); }

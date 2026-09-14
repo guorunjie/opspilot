@@ -53,6 +53,9 @@ try {
   assert.equal(evidence.version, pkg.version);
   assert.equal(evidence.scenarios.length, 4);
   assert.equal(evidence.supplementalResetRepeat, true);
+  assert.deepEqual(evidence.legacyUpgrade, { archivedStatuses: ['AWAITING_APPROVAL', 'SUBMITTED', 'VERIFIED'],
+    cancelPreserved: true, archivePreserved: true, restartPreserved: true, oldApprovalRejected: true,
+    newTaskStatus: 'VERIFIED', submissionCount: 1, resetPreservedArchive: true });
   assert.deepEqual(evidence.recovery.map(({ point, status, submissionCount }) => ({ point, status, submissionCount })),
     ['started', 'reserved', 'written', 'verify-started', 'verify-saved'].map(point => ({ point,
       status: ['started', 'reserved'].includes(point) ? 'FAILED' : 'VERIFIED',
@@ -89,6 +92,7 @@ try {
     opportunityKinds: ['price', 'inventory', 'campaign'], supplementalResetRepeat: true,
     uninstallPassed: true,
     recoveryBoundaries: evidence.recovery.map(item => item.point),
+    legacyUpgrade: evidence.legacyUpgrade,
     scope: 'Ephemeral CI: Windows silent NSIS installation or macOS read-only DMG mount/app copy, actual packaged UI, app removal. Not interactive wizard, end-user quarantine/Gatekeeper, Developer ID/notarization or real-platform acceptance.' }, null, 2) + '\n');
   passed = true;
 } catch (error) {
