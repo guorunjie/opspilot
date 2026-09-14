@@ -1,0 +1,123 @@
+name: Release candidates
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+            command: npm run desktop:dist:win
+          - os: macos-latest
+            label: macos
+            command: npm run desktop:dist:mac
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Check out repository without credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate tag against package version
+        shell: bash
+        run: |
+          node --input-type=commonjs - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          assert.equal(lock.version, pkg.version);
+          assert.equal(lock.packages[''].version, pkg.version);
+          if (process.env.GITHUB_REF.startsWith('refs/tags/')) {
+            assert.equal(process.env.GITHUB_REF_NAME, `v${pkg.version}`);
+          }
+          NODE
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run unit tests
+        run: npm test
+      - name: Build unsigned installer candidate
+        run: ${{ matrix.command }}
+      - name: Prepare release assets
+        run: node scripts/prepare-release.mjs
+      - name: Upload platform assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-${{ matrix.label }}
+          path: release-assets/${{ matrix.label }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  draft-release:
+    name: Draft release (tag push only)
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: core-*
+          path: release-assets
+      - name: Check downloaded provenance and hashes
+        run: |
+          node --input-type=commonjs - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+          const assert = require('node:assert/strict');
+          assert.deepEqual(fs.readdirSync('release-assets').sort(), ['core-macos', 'core-windows']);
+          for (const label of ['windows', 'macos']) {
+            const dir = path.join('release-assets', `core-${label}`);
+            const p = JSON.parse(fs.readFileSync(path.join(dir, `provenance-${label}.json`), 'utf8'));
+            assert.equal(p.commit, process.env.GITHUB_SHA);
+            assert.equal(`v${p.version}`, process.env.GITHUB_REF_NAME);
+            assert.equal(p.platform, label === 'windows' ? 'win32' : 'darwin');
+            assert.ok(label === 'windows' ? p.arch === 'x64' : ['x64', 'arm64'].includes(p.arch));
+            const name = `OpsPilot-Core-Demo-${p.version}-${label === 'windows' ? 'win' : 'mac'}-${p.arch}.${label === 'windows' ? 'exe' : 'dmg'}`;
+            assert.equal(p.installer, name);
+            assert.equal(path.basename(name), name);
+            assert.deepEqual(fs.readdirSync(dir).sort(), [name, `SHA256SUMS-${label}.txt`, `provenance-${label}.json`].sort());
+            const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex');
+            assert.equal(digest, p.sha256);
+            assert.equal(fs.readFileSync(path.join(dir, `SHA256SUMS-${label}.txt`), 'utf8'), `${digest}  ${name}\n`);
+          }
+          NODE
+      - name: Create draft prerelease without overwriting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(find release-assets -type f | sort)
+          [ "${#assets[@]}" -eq 6 ]
+          gh release create "$RELEASE_TAG" "${assets[@]}" \
+            --verify-tag --draft --prerelease \
+            --title "OpsPilot Core Demo $RELEASE_TAG (unsigned candidate)" \
+            --notes 'Unsigned early offline synthetic pharmacy Demo; single-price workflow only, full Foundation incomplete. Unpacked application files were checked and installers hashed. Build success is not installer, macOS desktop, signing/notarization or real-platform acceptance. Review platform-specific SHA256SUMS and provenance, then validate installation, launch, restart and reset before publication. Do not disable OS security features. WAITING_FOR_REAL_VALIDATION.'
