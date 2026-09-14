@@ -40,4 +40,4 @@ Demo 使用独立数据、合成 fixtures、任务/调度命名空间、历史�
 
 dev.4 开发新增[独立持久化 Task 适配器](persistent-task.md)，为执行前检查点提供 SQLite 原子条件写入、逐事件校验与保存不确定时停止使用的边界。它已与同步 Local Task Agent 组合测试，尚未替换桌面 Demo 会话存储，也不等于完整异步执行实现。
 
-dev.4 还新增[异步 Task Agent 编排](async-task-agent.md)：模拟能力可异步执行，超时结果保持 UNKNOWN，原调用未结束前禁止同实例继续操作，迟到响应不能安装成功状态。尚未接入桌面、RPA 或多进程执行所有权；不替代上述完整异步 Runtime 的剩余验收。
+dev.4 还新增[异步 Task Agent 编排](async-task-agent.md)：模拟能力可异步执行，超时结果保持 UNKNOWN，原调用未结束前保留 SQLite 所有权、禁止其他合规实例继续操作，迟到响应不能安装成功状态。已有跨连接及真实子进程争用测试；尚未接入桌面、RPA 或宿主级执行者终止核验，不替代上述完整异步 Runtime 的剩余验收。

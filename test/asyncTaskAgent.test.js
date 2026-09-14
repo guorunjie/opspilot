@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openPersistentTask } from '../src/storage/persistentTask.js';
+import { createTaskOwnership } from '../src/storage/taskOwnership.js';
 import { createAsyncTaskAgent } from '../src/agent/asyncTaskAgent.js';
 import { advanceTask } from '../src/task/taskState.js';
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
@@ -9,7 +10,7 @@ const scope = { id: 'task', namespace: 'test', connectorId: 'mock', storeId: 'st
 function fixture(t, options = {}) {
   const store = openStateStore(':memory:', 'async-tests'); t.after(() => store.close());
   const handle = openPersistentTask({ store, scope, create: true }); let writes = 0;
-  const config = { ...handle, timeoutMs: 1000, planner: { proposePlan: async () => ({ items: [{ targetId: 'A', before: 2, value: 1 }] }) },
+  const config = { ...handle, ownership: createTaskOwnership({ store, scope }), timeoutMs: 1000, planner: { proposePlan: async () => ({ items: [{ targetId: 'A', before: 2, value: 1 }] }) },
     gateway: { get: id => ({ riskLevel: id === 'w' ? 'simulated_write' : 'readonly' }), async invoke(id, req, context) {
       if (id === 'w') { assert.equal(handle.getTask().status, 'EXECUTING'); writes++; return options.write ? options.write(req, context) : { status: 'SUBMITTED' }; }
       assert.equal(handle.getTask().status, 'VERIFYING');
@@ -101,4 +102,26 @@ test('planner receives detached input; generated authorization and identity are 
   assert.deepEqual(input, {}); assert.equal(f.agent.snapshot().storeId, 'store');
   assert.equal(f.agent.snapshot().plan.id, 'p'); assert.equal(f.agent.snapshot().approval, null);
   await assert.rejects(f.agent.execute({ runId: 'run' })); assert.equal(f.writes, 0);
+});
+
+test('second Agent cannot recover or verify until timed-out original promise actually settles', async t => {
+  const gate = deferred(); const f = fixture(t, { write: () => gate.promise, config: { timeoutMs: 30 } });
+  await f.prepare(); const second = createAsyncTaskAgent(f.config);
+  await assert.rejects(f.agent.execute({ runId: 'run' }), /timed out/);
+  assert.ok(f.config.ownership.inspect().token);
+  await assert.rejects(second.verify(), /owned/);
+  await assert.rejects(second.recover({ previousExecutorStopped: true }), /owned/);
+  gate.resolve({ status: 'SUBMITTED' }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.config.ownership.inspect().token, null);
+  assert.equal((await second.verify()).task.status, 'VERIFIED'); assert.equal(f.writes, 1);
+});
+
+test('release acknowledgement failure stops the Agent instead of reporting clean completion', async t => {
+  const f = fixture(t); const base = f.config.ownership;
+  const agent = createAsyncTaskAgent({ ...f.config, ownership: { ...base, release(token) {
+    base.release(token); throw new Error('release ack lost');
+  } } });
+  await assert.rejects(agent.check(true), /release uncertain/);
+  assert.equal(f.handle.getTask().status, 'READY');
+  await assert.rejects(agent.check(true), /uncertain/);
 });

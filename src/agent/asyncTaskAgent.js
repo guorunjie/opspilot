@@ -4,8 +4,8 @@ import { advanceTask, assertTask } from '../task/taskState.js';
 // Trusted application composition; persistence remains synchronous/atomic.
 // Supports asynchronous planner and simulated gateway, not production writes.
 export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { read: () => null },
-  gateway, writeCapabilityId, readCapabilityId, timeoutMs = 30000 }) {
-  for (const hook of [getTask, checkpoint, gateway?.get]) {
+  gateway, ownership, writeCapabilityId, readCapabilityId, timeoutMs = 30000 }) {
+  for (const hook of [getTask, checkpoint, gateway?.get, ownership?.acquire, ownership?.assertHeld, ownership?.release]) {
     if (typeof hook !== 'function' || hook.constructor?.name === 'AsyncFunction')
       throw new TypeError('Persistence and capability metadata must be synchronous');
   }
@@ -20,11 +20,17 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
     }
     return value;
   };
-  let busy = false, outstanding = false, poisoned = false;
+  let busy = false, outstanding = false, poisoned = false, token = null, releaseError = null;
   const current = () => structuredClone(assertTask(sync(getTask())));
+  const releaseIfIdle = () => {
+    if (busy || outstanding || !token) return;
+    try { sync(ownership.release(token)); token = null; }
+    catch (error) { poisoned = true; releaseError = error; }
+  };
   const commit = (event, previous = current()) => {
     const next = advanceTask(previous, event);
     try {
+      sync(ownership.assertHeld(token, previous));
       if (!isDeepStrictEqual(current(), previous)) throw new Error('Task changed during asynchronous operation');
       sync(checkpoint(structuredClone(next), structuredClone(previous)));
       if (!isDeepStrictEqual(current(), next)) throw new Error('Checkpoint was not acknowledged');
@@ -38,8 +44,8 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
     let timer;
     outstanding = true;
     const running = Promise.resolve().then(() => work(controller.signal));
-    const settled = running.then(value => { outstanding = false; return value; }, error => {
-      outstanding = false; throw error;
+    const settled = running.then(value => { outstanding = false; releaseIfIdle(); return value; }, error => {
+      outstanding = false; releaseIfIdle(); throw error;
     });
     try {
       return await Promise.race([settled, new Promise((_, reject) => {
@@ -74,6 +80,7 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
       const started = commit({ type: 'START', runId });
       let result;
       try { result = structuredClone(await bounded(signal => {
+        sync(ownership.assertHeld(token, started));
         if (!isDeepStrictEqual(current(), started)) throw new Error('Task changed before invocation');
         return gateway.invoke(writeCapabilityId, request(started), { signal });
       })); }
@@ -85,6 +92,7 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
       const started = commit({ type: 'BEGIN_VERIFY' });
       let readback;
       try { readback = structuredClone(await bounded(signal => {
+        sync(ownership.assertHeld(token, started));
         if (!isDeepStrictEqual(current(), started)) throw new Error('Task changed before invocation');
         return gateway.invoke(readCapabilityId, request(started), { signal });
       })); }
@@ -103,8 +111,13 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
     ...Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, async (...args) => {
       if (poisoned) throw new Error('Checkpoint uncertain; reopen and reconcile');
       if (busy || outstanding) throw new Error('An operation is still in progress');
+      token = sync(ownership.acquire(current()));
+      if (typeof token !== 'string' || !token) { poisoned = true; throw new Error('Invalid ownership token'); }
       busy = true;
-      try { return await command(...args); } finally { busy = false; }
+      try { return await command(...args); } finally {
+        busy = false; releaseIfIdle();
+        if (releaseError) throw new Error('Ownership release uncertain; reopen and reconcile', { cause: releaseError });
+      }
     }]))
   });
 }
