@@ -25,7 +25,7 @@ const name = `OpsPilot-Core-Demo-${pkg.version}-${win ? 'win' : 'mac'}-${arch}.$
 const installer = path.resolve('dist/core', name);
 const output = path.resolve('output/playwright/packaged-ci');
 fs.mkdirSync(output, { recursive: true });
-const run = (command, args) => execFileSync(command, args, { stdio: 'inherit', timeout: 180000, windowsHide: true });
+const run = (command, args, timeout = 180000) => execFileSync(command, args, { stdio: 'inherit', timeout, windowsHide: true });
 const destination = path.join(root, win ? 'OpsPilot-Core-Demo' : 'OpsPilot-Core-Demo.app');
 const mount = path.join(root, 'mounted');
 let mounted = false;
@@ -46,10 +46,17 @@ try {
     : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot-Core-Demo.app/Contents/Resources/app.asar`);
   assert.equal(sha(archive), sha(unpacked), 'Installed archive must match audited build archive');
   const executable = within(path.join(destination, win ? 'OpsPilot-Core-Demo.exe' : 'Contents/MacOS/OpsPilot-Core-Demo'));
-  run(process.execPath, [path.resolve('scripts/verify-packaged-demo.mjs'), executable]);
+  run(process.execPath, [path.resolve('scripts/verify-packaged-demo.mjs'), executable], 600000);
   const evidence = JSON.parse(fs.readFileSync(path.join(output, 'result.json'), 'utf8'));
   assert.equal(evidence.version, pkg.version);
   assert.equal(evidence.scenarios.length, 4);
+  assert.equal(evidence.supplementalResetRepeat, true);
+  const expectedSupplemental = ['inventory', 'campaign'].flatMap(kind =>
+    ['normal', 'response_lost', 'mismatch', 'readback_unavailable'].map(scenario => ({
+      kind, scenario, submissionCount: 1, status: scenario === 'mismatch' ? 'FAILED' : 'VERIFIED'
+    })));
+  const byIdentity = (a, b) => `${a.kind}:${a.scenario}`.localeCompare(`${b.kind}:${b.scenario}`);
+  assert.deepEqual([...evidence.supplemental].sort(byIdentity), expectedSupplemental.sort(byIdentity));
   const archiveSha256 = sha(archive);
   if (win) {
     const uninstaller = within(path.join(destination, 'Uninstall OpsPilot-Core-Demo.exe'));
@@ -71,7 +78,8 @@ try {
   installed = false;
   fs.writeFileSync(path.join(output, 'install.json'), JSON.stringify({ version: pkg.version,
     commit: process.env.GITHUB_SHA, platform: process.platform, arch, installer: name,
-    installerSha256: sha(installer), installedAsarSha256: archiveSha256, uiScenarios: 4,
+    installerSha256: sha(installer), installedAsarSha256: archiveSha256, uiScenarios: 12,
+    opportunityKinds: ['price', 'inventory', 'campaign'], supplementalResetRepeat: true,
     uninstallPassed: true,
     scope: 'Ephemeral CI: Windows silent NSIS installation or macOS read-only DMG mount/app copy, actual packaged UI, app removal. Not interactive wizard, end-user quarantine/Gatekeeper, Developer ID/notarization or real-platform acceptance.' }, null, 2) + '\n');
   passed = true;

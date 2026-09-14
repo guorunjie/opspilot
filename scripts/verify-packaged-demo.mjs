@@ -68,6 +68,8 @@ async function scenarioRun(scenario) {
   assert.equal(submitted.action.status, 'awaiting_readback');
   assert.equal(submitted.submissionCount, 1);
   assert.equal(submitted.review, null);
+  assert.equal(submitted.task.status, scenario === 'response_lost' ? 'UNKNOWN' : 'SUBMITTED');
+  assert.equal(submitted.task.verifications.length, 0);
   await reopen(submitted);
   await submittedControls();
   await button('核对模拟平台结果').click();
@@ -96,6 +98,7 @@ async function scenarioRun(scenario) {
   assert.equal(reviewed.review.items[0].expected, 1800);
   assert.equal(reviewed.review.items[0].observed, mismatch ? 2000 : 1800);
   assert.equal(reviewed.review.actualProfitImpact, null);
+  assert.equal(reviewed.task.status, mismatch ? 'FAILED' : 'VERIFIED');
   await page.screenshot({ path: path.join(output, `${scenario}-review.png`), fullPage: true });
   await reopen(reviewed);
   await resetDialog(false);
@@ -113,10 +116,95 @@ async function scenarioRun(scenario) {
   assert.deepEqual(errors, []);
   return { scenario, submissionCount: 1, status: reviewed.action.status };
 }
+async function supplementalConfirm(label, accept) {
+  const waiting = page.waitForEvent('dialog');
+  const clicked = button(`确认${label}预览`).click();
+  const dialog = await waiting;
+  assert.equal(dialog.type(), 'confirm');
+  assert.match(dialog.message(), new RegExp(`确认本次${label}模拟`));
+  if (accept) await dialog.accept(); else await dialog.dismiss();
+  await clicked;
+}
+async function supplementalRun(scenario) {
+  await open();
+  const initial = await snapshot();
+  assert.equal(initial.diagnosis, null);
+  assert.equal(initial.supplemental, undefined, 'Never reset a pre-existing supplemental task');
+  assert.equal(initial.action, null);
+  await button('运行演示诊断').click();
+  for (const [kind, label] of [['inventory', '库存'], ['campaign', '活动']]) {
+    await button(`预览${label}建议`).click();
+    await supplementalConfirm(label, false);
+    assert.equal((await snapshot()).supplemental[kind].task.approval, null);
+    await supplementalConfirm(label, true);
+    await waitText(`[data-kind="${kind}"]`, '已保存本次模拟确认');
+    if (scenario !== 'normal') await page.locator(`[data-kind="${kind}"] summary`).click();
+    const action = scenario === 'normal' ? `执行${label}模拟`
+      : `模拟${label}${{ response_lost: '响应丢失', mismatch: '目标不一致', readback_unavailable: '首次回读不可用' }[scenario]}`;
+    await button(action).click();
+    await waitText(`[data-kind="${kind}"]`, '提交次数：1');
+  }
+  const submitted = await snapshot();
+  assert.equal(submitted.submissionCount, 0, 'Supplemental tasks cannot execute price task');
+  for (const record of Object.values(submitted.supplemental)) {
+    assert.equal(record.task.status, scenario === 'response_lost' ? 'UNKNOWN' : 'SUBMITTED');
+    assert.equal(record.review, null);
+  }
+  await reopen(submitted);
+  for (const [kind, label] of [['inventory', '库存'], ['campaign', '活动']]) {
+    assert.equal(await button(`确认${label}预览`).count(), 0);
+    assert.equal(await button(`执行${label}模拟`).isDisabled(), true);
+    await button(`核对${label}模拟结果`).click();
+    if (scenario === 'readback_unavailable') {
+      await waitText(`[data-kind="${kind}"]`, '复盘：结果未知（UNKNOWN）');
+      const unknown = await snapshot();
+      assert.equal(unknown.supplemental[kind].review.items[0].observed, null);
+      assert.equal(unknown.supplemental[kind].submissionCount, 1);
+      await page.locator('#additional-section').screenshot({ path: path.join(output, `${kind}-${scenario}-unknown.png`) });
+      await reopen(unknown);
+      assert.equal(await button(`执行${label}模拟`).isDisabled(), true);
+      await button(`核对${label}模拟结果`).click();
+    }
+    await waitText(`[data-kind="${kind}"]`, `复盘：${scenario === 'mismatch' ? '模拟目标不一致（FAILED）' : '模拟回读一致（VERIFIED）'}`);
+  }
+  const reviewed = await snapshot();
+  const results = [];
+  for (const kind of ['inventory', 'campaign']) {
+    const record = reviewed.supplemental[kind];
+    assert.equal(record.task.status, scenario === 'mismatch' ? 'FAILED' : 'VERIFIED');
+    assert.equal(record.submissionCount, 1);
+    assert.equal(record.task.history.filter(event => event.type === 'START').length, 1);
+    assert.equal(record.review.realPlatformVerified, false);
+    assert.equal(record.review.actualProfitImpact, null);
+    assert.equal(record.review.items.length, 1);
+    const expected = kind === 'inventory' ? 12 : 1;
+    assert.equal(record.review.items[0].expected, expected);
+    assert.equal(record.review.items[0].observed, scenario === 'mismatch' ? 0 : expected);
+    results.push({ kind, scenario, submissionCount: 1, status: record.task.status });
+  }
+  await page.locator('#additional-section').screenshot({ path: path.join(output, `supplemental-${scenario}-review.png`) });
+  await reopen(reviewed);
+  await resetDialog(false);
+  assert.deepEqual(await snapshot(), reviewed);
+  await resetDialog(true);
+  await waitText('#action-state', '尚未确认。');
+  const reset = await snapshot();
+  assert.notEqual(reset.sessionId, reviewed.sessionId);
+  assert.equal(reset.supplemental, undefined);
+  assert.equal(reset.diagnosis, null);
+  await reopen(reset);
+  await close();
+  assert.deepEqual(errors, []);
+  return results;
+}
 try {
   const scenarios = [];
   for (const scenario of ['normal', 'response_lost', 'mismatch', 'readback_unavailable']) scenarios.push(await scenarioRun(scenario));
+  const supplemental = [];
+  for (const scenario of ['normal', 'response_lost', 'mismatch', 'readback_unavailable']) supplemental.push(...await supplementalRun(scenario));
+  // Repeat both normal flows after the final reset, not just an empty snapshot.
+  await supplementalRun('normal');
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ version: expectedVersion,
-    platform: process.platform, arch: process.arch, scenarios,
+    platform: process.platform, arch: process.arch, scenarios, supplemental, supplementalResetRepeat: true,
     scope: 'Actual packaged app UI in ephemeral CI; not interactive installer, clean end-user machine, Gatekeeper/notarization or real-platform acceptance' }, null, 2) + '\n');
 } finally { await close(); }
