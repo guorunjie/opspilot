@@ -37,7 +37,7 @@ async function fixture(t, opts = {}) {
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   opts.mutate?.(root, staging);
   const unpacked = platform === 'win32' ? 'win-unpacked/resources/app.asar'
-    : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot Open Core Demo.app/Contents/Resources/app.asar`;
+    : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot-Core-Demo.app/Contents/Resources/app.asar`;
   const archive = path.join(root, 'dist/core', unpacked);
   fs.mkdirSync(path.dirname(archive), { recursive: true });
   await asar.createPackage(staging, archive);

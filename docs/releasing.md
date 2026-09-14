@@ -11,6 +11,8 @@
 
 每个平台保存安装包、`SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` 与对应 provenance JSON，Actions 保留七天。核对脚本检查同次构建的未封装目录内 app.asar：文件清单、源码字节、版本和 Apache-2.0 许可证，并记录安装包 SHA-256。脚本不会解开或执行安装包，不能证明安装包已通过安装验收，也不是签名或供应链证明。
 
+“未签名候选”表示未配置可信发行者签名：Windows 包没有数字签名；macOS builder 可能使用 ad-hoc 签名，这不等于 Developer ID 签名或 Apple 公证。macOS 应用目录遵循 executableName，为 `OpsPilot-Core-Demo.app`，不是显示名称。
+
 ## 发布草稿前
 
 1. 确认两平台产物、标签、提交和版本对应；检查校验值与许可证。

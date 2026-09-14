@@ -42,6 +42,7 @@ export function prepareRelease({ root, platform, arch, commit }) {
   assert.equal(lock.packages[''].version, pkg.version);
   assert.equal(lock.packages[''].license, pkg.license);
   assert.equal(config.productName, 'OpsPilot Open Core Demo');
+  assert.equal(config.executableName, 'OpsPilot-Core-Demo');
   assert.equal(config.directories.output, 'dist/core');
   const expected = config.files;
   assert.ok(Array.isArray(expected) && expected.includes('LICENSE') && expected.includes('package.json'));
@@ -57,7 +58,7 @@ export function prepareRelease({ root, platform, arch, commit }) {
   const installer = regularFile(root, `dist/core/${name}`);
   assert.ok(fs.statSync(installer).size > 0, 'Empty installer');
   const unpacked = platform === 'win32' ? 'win-unpacked/resources/app.asar'
-    : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot Open Core Demo.app/Contents/Resources/app.asar`;
+    : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/${config.executableName}.app/Contents/Resources/app.asar`;
   const archive = regularFile(root, `dist/core/${unpacked}`);
   asar.uncache(archive);
   const actual = [];
