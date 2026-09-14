@@ -85,3 +85,18 @@ test('missing or forged v2 task is rejected without rewriting storage', () => {
     } finally { store.close(); }
   }
 });
+
+test('legacy confirmed-but-not-submitted task still uses the scoped mock write path', () => {
+  const store = openStateStore(':memory:', 'offline_demo');
+  try {
+    const demo = createOfflineStoreDemo({ store }); confirmed(demo);
+    const record = store.read('pharmacy-session');
+    delete record.value.state.task; record.value.version = 1;
+    store.save('pharmacy-session', record.value, record.revision);
+    const legacy = createOfflineStoreDemo({ store });
+    assert.equal(legacy.execute().submissionCount, 1);
+    assert.throws(() => legacy.execute());
+    assert.equal(legacy.readback().review.matchedCount, 1);
+    assert.equal(store.read('pharmacy-session').value.version, 1);
+  } finally { store.close(); }
+});

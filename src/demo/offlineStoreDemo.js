@@ -1,14 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { createTask, advanceTask } from '../task/taskState.js';
+import { createMockPriceConnector } from '../connector/mockPriceConnector.js';
+import { createDemoPriceCapabilities } from './demoPriceCapabilities.js';
 import { validateDemoState } from './validateDemoState.js';
 import { createPlatformAction, transitionPlatformAction } from "../domain/model/platformActionProtocol.js";
 
-// Deliberately no filesystem, config loader, gateway, credential, scheduler,
+// Deliberately no filesystem, config loader, production gateway, credential, scheduler,
 // browser or network dependency. All prices are integer cents, synthetic only.
 export function createOfflineStoreDemo({ store } = {}) {
   let state;
-  let platformPrices;
+  let connector;
+  const prices = () => new Map(connector.snapshot());
+  const capabilities = createDemoPriceCapabilities({ getConnector: () => connector, getState: () => state });
+  const priceRequest = () => ({ planId: state.preview.id, storeId: state.storeId,
+    items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) });
   let revision = 0;
   let storageFailed = false;
   const snapshot = () => structuredClone(state);
@@ -29,7 +35,7 @@ export function createOfflineStoreDemo({ store } = {}) {
       submissionCount: 0, message: "离线演示：所有门店、商品与结果均为合成数据，不连接真实平台。"
     };
     state.task = createTask({ id: state.sessionId, namespace: 'offline_demo', connectorId: 'offline_demo', storeId: state.storeId });
-    platformPrices = new Map(state.products.map((item) => [item.id, item.price]));
+    connector = createMockPriceConnector({ storeId: state.storeId, prices: state.products.map(item => [item.id, item.price]) });
     return snapshot();
   };
   reset();
@@ -49,10 +55,10 @@ export function createOfflineStoreDemo({ store } = {}) {
       }
       validateDemoState(value.state, state.products, new Map(value.platformPrices));
       state = structuredClone(value.state);
-      platformPrices = new Map(value.platformPrices);
+      connector = createMockPriceConnector({ storeId: state.storeId, prices: value.platformPrices });
       revision = saved.revision;
     } else {
-      revision = store.save('pharmacy-session', { version: 2, state, platformPrices: [...platformPrices] }, 0);
+      revision = store.save('pharmacy-session', { version: 2, state, platformPrices: connector.snapshot() }, 0);
     }
   }
   const commands = {
@@ -107,7 +113,7 @@ export function createOfflineStoreDemo({ store } = {}) {
       move("running");
       state.executionScenario = scenario;
       state.submissionCount += 1;
-      for (const item of state.preview.items) platformPrices.set(item.productId, scenario === "mismatch" ? item.before : item.after);
+      capabilities.invoke('demo.price.write', priceRequest());
       taskEvent({ type: 'SUBMIT', uncertain: scenario === 'response_lost' });
       move("awaiting_readback", { reason: scenario === "response_lost" ? "模拟提交响应丢失，结果待核对，禁止重发。" : "模拟提交完成，但尚未回读，不能报成功。", mutationAttempted: true });
       state.message = state.action.reason;
@@ -119,14 +125,14 @@ export function createOfflineStoreDemo({ store } = {}) {
       // A read attempt is not a write retry. Keep unavailable evidence distinct
       // from a mismatching target, and persist it before allowing another check.
       state.readbackAttempts ??= [];
-      if (state.executionScenario === 'readback_unavailable' && state.readbackAttempts.length === 0) {
+      const readback = capabilities.invoke('demo.price.read', priceRequest());
+      if (readback === null) {
         taskEvent({ type: 'READBACK', readback: null });
         state.readbackAttempts.push({ status: 'UNKNOWN', code: 'target_unavailable', simulated: true, realPlatformVerified: false });
         state.message = '结果未知（UNKNOWN）：本次模拟回读不可用，没有取得目标状态；禁止重复提交。可再次核对，演示将在下一次回读恢复。';
         return snapshot();
       }
       const scope = { planId: state.preview.id, connectorId: 'offline_demo', storeId: state.storeId };
-      const readback = { ...scope, items: state.preview.items.map(item => ({ targetId: item.productId, value: platformPrices.get(item.productId) })) };
       taskEvent({ type: 'READBACK', readback });
       const verification = verifyTargetState({ ...scope,
         expected: state.preview.items.map(item => ({ targetId: item.productId, value: item.after })),
@@ -151,18 +157,18 @@ export function createOfflineStoreDemo({ store } = {}) {
   return Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, (...args) => {
     if (storageFailed) throw new Error('演示保存结果不明，请重新打开后核对；禁止继续执行。');
     const before = structuredClone(state);
-    const pricesBefore = new Map(platformPrices);
+    const pricesBefore = connector.snapshot();
     let result;
     try {
       result = command(...args);
-      if (name !== 'snapshot') validateDemoState(state, initialProducts, platformPrices);
+      if (name !== 'snapshot') validateDemoState(state, initialProducts, prices());
     }
-    catch (error) { state = before; platformPrices = pricesBefore; throw error; }
+    catch (error) { state = before; connector = createMockPriceConnector({ storeId: state.storeId, prices: pricesBefore }); throw error; }
     if (store && name !== 'snapshot') {
       try {
-        revision = store.save('pharmacy-session', { version: state.task ? 2 : 1, state, platformPrices: [...platformPrices] }, revision);
+        revision = store.save('pharmacy-session', { version: state.task ? 2 : 1, state, platformPrices: connector.snapshot() }, revision);
       } catch (error) {
-        state = before; platformPrices = pricesBefore; storageFailed = true;
+        state = before; connector = createMockPriceConnector({ storeId: state.storeId, prices: pricesBefore }); storageFailed = true;
         throw error;
       }
     }

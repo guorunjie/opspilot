@@ -44,7 +44,8 @@ is unnecessary for this wholly local operation. This is **not** proof of
 exactly-once remote writes. Real connectors still require a durable pre-submit
 checkpoint, reconciliation and controlled recovery before production use.
 
-Only the price Demo is connected here. Multi-item partial-result UI, stockout
+The price Demo now invokes the [local capability/connector slice](local-capabilities.md).
+Multi-item partial-result UI, stockout
 and campaign execution, rollback execution/UI, Planner/Memory/Capability/RPA
 integration and Enterprise consumption remain unfinished. No real-store result
 is claimed: WAITING_FOR_REAL_VALIDATION.
