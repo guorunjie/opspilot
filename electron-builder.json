@@ -1,0 +1,54 @@
+{
+  "appId": "com.opspilot.opencore.demo",
+  "productName": "OpsPilot Open Core Demo",
+  "executableName": "OpsPilot-Core-Demo",
+  "asar": true,
+  "npmRebuild": false,
+  "publish": null,
+  "directories": {
+    "output": "dist/core"
+  },
+  "artifactName": "OpsPilot-Core-Demo-${version}-${os}-${arch}.${ext}",
+  "files": [
+    "LICENSE",
+    "package.json",
+    "desktop/demo.cjs",
+    "desktop/demoRuntime.cjs",
+    "desktop/demo-preload.cjs",
+    "desktop/demo/index.html",
+    "desktop/demo/demo.js",
+    "desktop/demo/demo.css",
+    "src/demo/offlineStoreDemo.js",
+    "src/demo/validateDemoState.js",
+    "src/domain/model/platformActionProtocol.js",
+    "src/storage/sqliteStateStore.js",
+    "src/storage/demoStoragePath.js"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": "always",
+    "createStartMenuShortcut": true,
+    "shortcutName": "OpsPilot Open Core Demo",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false
+  },
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "category": "public.app-category.business"
+  }
+}

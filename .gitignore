@@ -1,0 +1,12 @@
+node_modules/
+dist/
+output/
+data/
+*.log
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*

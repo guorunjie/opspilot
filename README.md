@@ -12,7 +12,23 @@ OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动
 
 目前，**医药即时零售 O2O** 是 OpsPilot 的第一个真实生产落地方向，但底层架构尽量保持通用，可继续扩展到零售、电商、本地生活和其他经营自动化场景。
 
-> 发布状态：本仓库处于 OpsPilot 2.0 Foundation 初始建设阶段。以下介绍包含产品方向及计划范围，不代表当前公开仓库已提供全部实现或完成生产验收。首批发布项目说明；独立可运行的 Demo、安装包及测试将逐步迁入。Open Core 已确定采用 Apache-2.0。
+> 发布状态：本仓库处于 OpsPilot 2.0 Foundation 初始建设阶段，提供早期离线药房 Demo 源码。以下介绍包含产品方向及计划范围，不代表全部实现或生产验收。当前仅打通单个合成商品的价格操作；库存与成本详情只读，活动机会及通用 Agent/RPA 框架仍在迁入。Open Core 采用 Apache-2.0。
+
+## 快速体验
+
+安装 Node.js 24 或更高版本后：
+
+```sh
+git clone https://github.com/guorunjie/opspilot.git
+cd opspilot
+npm ci
+npm test
+npm start
+```
+
+依赖下载需要网络。启动后使用合成药房数据，按“诊断 → 预览 → 明确确认 → 模拟执行 → 回读 → 复盘”体验，不需要真实平台账号。支持正常提交、响应丢失、回读不一致、首次回读不可用四种场景，以及会话恢复和确认复位。
+
+详见[使用指南](docs/getting-started.md)。本机 Windows 测试不代表 macOS、全新机器或真实平台验收；安装包以 Releases 的实际资产和说明为准。
 
 ## 许可证
 

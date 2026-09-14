@@ -1,0 +1,15 @@
+:root { font-family: "Microsoft YaHei", system-ui, sans-serif; color: #173330; background: #f3f6f4; }
+[hidden] { display: none !important; }
+body { margin: 0; } header { display: flex; align-items: center; gap: 20px; padding: 20px 6%; background: #fff; border-bottom: 1px solid #d6e1da; }
+.brand { font-size: 24px; font-weight: 700; } .badge { color: #715500; background: #fff0c2; padding: 7px 12px; border-radius: 8px; } header button { margin-left: auto; }
+main { max-width: 960px; margin: 30px auto; padding: 0 24px 40px; } h1 { font-size: 32px; } h2 { font-size: 19px; }
+section { background: white; border: 1px solid #d6e1da; border-radius: 12px; padding: 20px; margin: 18px 0; }
+button, select { font: inherit; border: 1px solid #b6c8bf; border-radius: 7px; padding: 10px 15px; margin: 8px 8px 8px 0; }
+button { background: #176552; color: white; cursor: pointer; } button:disabled { background: #e2e9e5; color: #5c6b64; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #d08b00; outline-offset: 3px; } label { display: block; margin: 12px 0; }
+.notice { border-left: 4px solid #c89416; padding: 12px; background: #fff8e2; } #status { font-weight: 600; min-height: 24px; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; } th, td { padding: 10px; border-bottom: 1px solid #e1e8e3; text-align: left; } li { margin: 10px 0; line-height: 1.6; }
+details { border: 1px solid #d6e1da; border-radius: 8px; padding: 12px; margin: 12px 0; }
+summary { cursor: pointer; font-weight: 600; line-height: 1.6; }
+summary:focus-visible { outline: 3px solid #d08b00; outline-offset: 3px; }
+details p { line-height: 1.6; margin: 8px 0; overflow-wrap: anywhere; }

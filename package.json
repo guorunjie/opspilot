@@ -1,0 +1,18 @@
+{
+  "name": "opspilot",
+  "version": "0.1.0-dev.2",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Local-first operations agent — isolated offline foundation",
+  "main": "desktop/demo.cjs",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test",
+    "start": "electron desktop/demo.cjs",
+    "desktop:pack": "electron-builder --config electron-builder.json --dir --publish never",
+    "desktop:dist:win": "electron-builder --config electron-builder.json --win nsis --x64 --publish never",
+    "desktop:dist:mac": "electron-builder --config electron-builder.json --mac dmg --publish never"
+  },
+  "devDependencies": { "electron": "42.7.0", "electron-builder": "26.8.1" }
+}
