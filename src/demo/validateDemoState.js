@@ -2,6 +2,7 @@ import { isDeepStrictEqual as equal } from 'node:util';
 import { assertPlatformAction } from '../domain/model/platformActionProtocol.js';
 import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { assertTask } from '../task/taskState.js';
+import { planPrices, diagnoseProducts } from '../domain/model/pricePlanning.js';
 
 // Validate this version's synthetic checkpoint, not arbitrary production state.
 export function validateDemoState(state, initialProducts, prices) {
@@ -26,6 +27,10 @@ export function validateDemoState(state, initialProducts, prices) {
       expected: item.expected, observed: item.observed, status: item.matched ? 'VERIFIED' : 'FAILED' }))));
   }
   require(equal(state.products, initialProducts));
+  if (state.diagnosis && Object.hasOwn(state.diagnosis, 'ruleVersion')) {
+    require(state.diagnosis.ruleVersion === 1);
+    for (const [key, value] of Object.entries(diagnoseProducts(initialProducts))) require(equal(state.diagnosis[key], value));
+  }
   require(typeof state.sessionId === 'string' && state.sessionId.length > 0);
   require(state.submissionCount === 0 || state.submissionCount === 1);
   // Older unpublished checkpoints did not record a scenario: keep it unknown.
@@ -52,9 +57,9 @@ export function validateDemoState(state, initialProducts, prices) {
     require(state.diagnosis?.simulated === true);
     require(state.preview.simulated === true && state.preview.minimumMargin === 0.2);
     require(typeof state.preview.id === 'string' && state.preview.id.startsWith(`${state.sessionId}:`));
-    const eligible = initialProducts.filter(p => p.target !== null && p.cost !== null && (p.target - p.cost) / p.target >= 0.2);
-    require(equal(state.preview.items, eligible.map(p => ({ productId: p.id, name: p.name,
-      before: p.price, after: p.target, cost: p.cost, margin: (p.target - p.cost) / p.target }))));
+    const plan = planPrices(initialProducts, { minimumMargin: 0.2 });
+    require(equal(state.preview.items, plan.items));
+    require(equal(state.preview.excluded, plan.excluded));
   }
   const action = state.action;
   if (!action) {

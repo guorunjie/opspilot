@@ -3,6 +3,7 @@ import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { createTask, advanceTask } from '../task/taskState.js';
 import { createMockPriceConnector } from '../connector/mockPriceConnector.js';
 import { createDemoPriceCapabilities } from './demoPriceCapabilities.js';
+import { diagnoseProducts, createRulePricePlanner } from '../domain/model/pricePlanning.js';
 import { validateDemoState } from './validateDemoState.js';
 import { createPlatformAction, transitionPlatformAction } from "../domain/model/platformActionProtocol.js";
 
@@ -13,6 +14,7 @@ export function createOfflineStoreDemo({ store } = {}) {
   let connector;
   const prices = () => new Map(connector.snapshot());
   const capabilities = createDemoPriceCapabilities({ getConnector: () => connector, getState: () => state });
+  const planner = createRulePricePlanner();
   const priceRequest = () => ({ planId: state.preview.id, storeId: state.storeId,
     items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) });
   let revision = 0;
@@ -68,25 +70,21 @@ export function createOfflineStoreDemo({ store } = {}) {
       // Rechecking an already previewed unchanged fixture is not a new plan.
       if (state.task?.status !== 'AWAITING_APPROVAL') taskEvent({ type: 'CHECK', ready: true });
       state.diagnosis = {
+        ruleVersion: 1,
         simulated: true, checkedAt: new Date().toISOString(), coverage: "仅演示商品与模拟库存，不代表真实门店",
-        missingCostCount: 1, stockoutCount: 1, repricingCandidateCount: 1,
+        ...diagnoseProducts(state.products),
         actualProfitImpact: null,
-        priorities: [
-          { id: "cost", title: "补充商品 B 成本", reason: "成本缺失，不能判断毛利或执行调价" },
-          { id: "inventory", title: "核对商品 C 库存", reason: "模拟库存为零，补货前还需核对实际库存" },
-          { id: "pricing", title: "审核商品 A 跟价建议", reason: "先预览价格与毛利，再确认模拟执行" }
-        ]
       };
       return snapshot();
     },
     preview() {
       if (!state.diagnosis) throw new Error("请先运行诊断。");
       if (state.action) throw new Error("已确认的预览不可修改，请完成回读或复位演示。");
-      const eligible = state.products.filter((item) => item.target !== null && item.cost !== null && (item.target - item.cost) / item.target >= 0.2);
+      const proposal = planner.proposePlan({ products: state.products, minimumMargin: 0.2 });
+      if (!proposal.items.length) throw new Error('没有满足数据及毛利要求的价格建议，不能创建空操作。');
       state.preview = {
         id: `${state.sessionId}:${randomUUID()}`, simulated: true, minimumMargin: 0.2,
-        items: eligible.map((item) => ({ productId: item.id, name: item.name, before: item.price, after: item.target, cost: item.cost, margin: (item.target - item.cost) / item.target })),
-        excluded: state.products.filter((item) => item.target !== null && !eligible.includes(item)).map((item) => ({ productId: item.id, reason: item.cost === null ? "missing_cost" : "margin_below_floor" }))
+        ...proposal
       };
       taskEvent({ type: 'PLAN', plan: { id: state.preview.id,
         items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) } });

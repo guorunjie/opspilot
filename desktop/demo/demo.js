@@ -42,7 +42,7 @@ function renderOpportunities(container,state,busy){
     diag.priorities.forEach(function(pr,idx){
       if(!pr||typeof pr!=='object')return;
       const pid=typeof pr.id==='string'?pr.id:null;
-      const mapped=PRI.has(pid)?PRI.get(pid):null;
+      const mapped=typeof pr.productId==='string'?pr.productId:(PRI.has(pid)?PRI.get(pid):null);
       const product=mapped?byId.get(mapped)||null:null;
       const def=pid&&DEF.has(pid)?DEF.get(pid):null;
       const key='opp:'+(pid||'unknown')+':'+String(pr.title||idx);

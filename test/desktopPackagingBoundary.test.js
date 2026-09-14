@@ -29,6 +29,7 @@ const EXPECTED_FILES = [
   'src/capability/capabilityRegistry.js',
   'src/connector/mockPriceConnector.js',
   'src/demo/demoPriceCapabilities.js',
+  'src/domain/model/pricePlanning.js',
   'src/domain/model/platformActionProtocol.js',
   'src/storage/sqliteStateStore.js',
   'src/storage/demoStoragePath.js',
