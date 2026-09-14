@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
 
 // Destructive installation lifecycle checks are restricted to ephemeral CI.
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
@@ -51,8 +52,15 @@ try {
   assert.equal(evidence.scenarios.length, 4);
   const archiveSha256 = sha(archive);
   if (win) {
-    run(within(path.join(destination, 'Uninstall OpsPilot-Core-Demo.exe')), ['/S', '/currentuser']);
+    const uninstaller = within(path.join(destination, 'Uninstall OpsPilot-Core-Demo.exe'));
+    run(uninstaller, ['/S', '/currentuser']);
+    // NSIS starts a temporary child so it can remove the original uninstaller.
+    // Observe removal; parent exit alone is not uninstall completion.
+    const deadline = Date.now() + 30000;
+    while ([executable, uninstaller, archive].some(file => fs.existsSync(file)) && Date.now() < deadline) await delay(250);
     assert.equal(fs.existsSync(executable), false, 'Uninstaller must remove test executable');
+    assert.equal(fs.existsSync(uninstaller), false, 'Uninstaller must remove its original file');
+    assert.equal(fs.existsSync(archive), false, 'Uninstaller must remove application archive');
   } else {
     // Remove only the freshly copied test app inside the owned temporary root.
     within(destination);
