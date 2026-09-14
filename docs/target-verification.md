@@ -21,10 +21,11 @@ The existing Demo v1 checkpoint and visible single-product flow are preserved:
 its complete synthetic price map is compared through this module and projected
 to the existing evidence/review format. The unavailable-read scenario still
 persists UNKNOWN without a terminal review, and retry reads never resubmit.
-Partial-result support is unit-tested here, **not yet a multi-product Demo or
-the canonical persistent Task/VerificationResult model**. That migration and
-the unified twelve-state task lifecycle remain outstanding. No production
-connector or commercial dependency is introduced.
+Partial-result support is unit-tested here, **not yet a multi-product Demo**.
+New sessions now use the [persistent Task slice](task-state.md), including
+verification history; legacy sessions preserve their earlier format. Full
+Agent/Capability integration remains outstanding. No production connector or
+commercial dependency is introduced.
 
 Development source is now 0.1.0-dev.3; the published dev.2 installers and tag
 remain unchanged. This source change alone is not a new installer acceptance.

@@ -25,6 +25,7 @@ const EXPECTED_FILES = [
   'src/demo/offlineStoreDemo.js',
   'src/demo/validateDemoState.js',
   'src/verification/verifyTargetState.js',
+  'src/task/taskState.js',
   'src/domain/model/platformActionProtocol.js',
   'src/storage/sqliteStateStore.js',
   'src/storage/demoStoragePath.js',

@@ -94,6 +94,11 @@ function render() {
     const note = document.createElement("p"); note.textContent = `最低毛利率 20%；${state.preview.excluded.length} 个缺成本或不满足毛利要求的候选被排除。预计毛利不等于实际经营收益。`; preview.append(note);
   }
   text("action-state", state.action ? `模拟动作：${state.action.statusLabel}；提交次数：${state.submissionCount}` : "尚未确认。");
+  if (state.task && state.action) {
+    const labels = { AWAITING_APPROVAL: '已保存确认，尚未执行', SUBMITTED: '已提交，待核对',
+      UNKNOWN: '结果未知', VERIFIED: '模拟回读一致', FAILED: '模拟目标不一致', PARTIALLY_VERIFIED: '仅部分目标一致' };
+    text('action-state', `模拟任务：${labels[state.task.status] || state.task.status}（${state.task.status}）；提交次数：${state.submissionCount}`);
+  }
   const unavailable = state.readbackAttempts?.at(-1)?.status === 'UNKNOWN';
   if (unavailable) text('action-state', `模拟结果：未知（UNKNOWN）；提交次数：${state.submissionCount}。没有取得回读证据，不能判断成功或失败。`);
   text("review", state.review ? `${state.review.matchedCount}/${state.review.items.length} 项模拟回读一致。${state.review.items.map((item) => `${item.productId}：预期 ${money(item.expected)} / 回读 ${money(item.observed)}`).join("；")}。实际利润效果：未知。本结果不代表真实平台验证。` : "提交不等于成功，必须逐项核对。");
@@ -106,10 +111,14 @@ function render() {
   text('authorization-record', state.action ? '已保存本次预览的模拟确认。此记录仅适用于当前预览；恢复界面不会自动执行，也不授权任何真实门店操作。' : '');
   $("confirm").hidden = !!state.action;
   $("confirm").disabled = busy || !state.preview || !!state.action || !$("consent").checked;
-  $("execute").disabled = busy || state.action?.status !== "pending";
+  $("execute").disabled = busy || (state.task
+    ? state.task.status !== 'AWAITING_APPROVAL' || !state.task.approval || !!state.task.run
+    : state.action?.status !== "pending");
   $("scenario").disabled = busy || !!state.submissionCount;
   if (state.submissionCount) $("scenario").value = state.executionScenario || 'unknown';
-  $("readback").disabled = busy || state.action?.status !== "awaiting_readback";
+  $("readback").disabled = busy || (state.task
+    ? !['SUBMITTED', 'UNKNOWN'].includes(state.task.status) || !state.task.run
+    : state.action?.status !== "awaiting_readback");
   $("readback").textContent = unavailable ? '再次核对（不重复提交）' : '核对模拟平台结果';
   if (unavailable) text('review', '模拟平台暂时无法回读；尚无可核实的目标价格。请再次核对，不要重新执行。');
   $("reset").disabled = busy;

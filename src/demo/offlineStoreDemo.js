@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { verifyTargetState } from '../verification/verifyTargetState.js';
+import { createTask, advanceTask } from '../task/taskState.js';
 import { validateDemoState } from './validateDemoState.js';
 import { createPlatformAction, transitionPlatformAction } from "../domain/model/platformActionProtocol.js";
 
@@ -11,6 +12,7 @@ export function createOfflineStoreDemo({ store } = {}) {
   let revision = 0;
   let storageFailed = false;
   const snapshot = () => structuredClone(state);
+  const taskEvent = event => { if (state.task) state.task = advanceTask(state.task, event); };
   const move = (status, options = {}) => {
     state.action = transitionPlatformAction(state.action, status, options);
   };
@@ -26,15 +28,18 @@ export function createOfflineStoreDemo({ store } = {}) {
       diagnosis: null, preview: null, action: null, review: null, executionScenario: null, readbackAttempts: [],
       submissionCount: 0, message: "离线演示：所有门店、商品与结果均为合成数据，不连接真实平台。"
     };
+    state.task = createTask({ id: state.sessionId, namespace: 'offline_demo', connectorId: 'offline_demo', storeId: state.storeId });
     platformPrices = new Map(state.products.map((item) => [item.id, item.price]));
     return snapshot();
   };
   reset();
+  const initialProducts = structuredClone(state.products);
   if (store) {
     const saved = store.read('pharmacy-session');
     if (saved) {
       const value = saved.value;
-      if (value?.version !== 1 || value.state?.mode !== 'offline_demo' || value.state?.simulated !== true
+      if (![1, 2].includes(value?.version) || (value.version === 2 ? !value.state?.task : Object.hasOwn(value.state ?? {}, 'task'))
+        || value.state?.mode !== 'offline_demo' || value.state?.simulated !== true
         || value.state?.realPlatformVerified !== false || value.state?.storeId !== 'demo-store'
         || !Array.isArray(value.platformPrices) || value.platformPrices.length !== 3
         || value.platformPrices.some(row => !Array.isArray(row) || row.length !== 2
@@ -47,13 +52,15 @@ export function createOfflineStoreDemo({ store } = {}) {
       platformPrices = new Map(value.platformPrices);
       revision = saved.revision;
     } else {
-      revision = store.save('pharmacy-session', { version: 1, state, platformPrices: [...platformPrices] }, 0);
+      revision = store.save('pharmacy-session', { version: 2, state, platformPrices: [...platformPrices] }, 0);
     }
   }
   const commands = {
     snapshot, reset,
     diagnose() {
       if (state.action) throw new Error("当前动作已有确认，请先完成回读或复位演示。");
+      // Rechecking an already previewed unchanged fixture is not a new plan.
+      if (state.task?.status !== 'AWAITING_APPROVAL') taskEvent({ type: 'CHECK', ready: true });
       state.diagnosis = {
         simulated: true, checkedAt: new Date().toISOString(), coverage: "仅演示商品与模拟库存，不代表真实门店",
         missingCostCount: 1, stockoutCount: 1, repricingCandidateCount: 1,
@@ -75,12 +82,15 @@ export function createOfflineStoreDemo({ store } = {}) {
         items: eligible.map((item) => ({ productId: item.id, name: item.name, before: item.price, after: item.target, cost: item.cost, margin: (item.target - item.cost) / item.target })),
         excluded: state.products.filter((item) => item.target !== null && !eligible.includes(item)).map((item) => ({ productId: item.id, reason: item.cost === null ? "missing_cost" : "margin_below_floor" }))
       };
+      taskEvent({ type: 'PLAN', plan: { id: state.preview.id,
+        items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) } });
       return structuredClone(state.preview);
     },
     confirm({ previewId, confirmed } = {}) {
       if (confirmed !== true) throw new Error("必须明确确认模拟预览。");
       if (!state.preview || state.preview.id !== previewId) throw new Error("预览已失效，请重新预览并确认。");
       if (state.action) throw new Error("该预览已经确认，不能重复确认。");
+      taskEvent({ type: 'APPROVE', planId: previewId, confirmed });
       state.action = createPlatformAction({
         platformId: "offline_demo", storeId: state.storeId, storeName: state.storeName,
         actionType: "update_prices", authorizationLevel: "B",
@@ -93,28 +103,34 @@ export function createOfflineStoreDemo({ store } = {}) {
       if (!state.action) throw new Error("请先预览并确认模拟操作。");
       if (state.action.status !== "pending") throw new Error("本次已提交，禁止重复执行；请查看回读结果或复位演示。");
       if (!["normal", "response_lost", "mismatch", "readback_unavailable"].includes(scenario)) throw new Error("未知演示场景。");
+      taskEvent({ type: 'START', runId: randomUUID() });
       move("running");
       state.executionScenario = scenario;
       state.submissionCount += 1;
       for (const item of state.preview.items) platformPrices.set(item.productId, scenario === "mismatch" ? item.before : item.after);
+      taskEvent({ type: 'SUBMIT', uncertain: scenario === 'response_lost' });
       move("awaiting_readback", { reason: scenario === "response_lost" ? "模拟提交响应丢失，结果待核对，禁止重发。" : "模拟提交完成，但尚未回读，不能报成功。", mutationAttempted: true });
       state.message = state.action.reason;
       return snapshot();
     },
     readback() {
       if (state.action?.status !== "awaiting_readback") throw new Error("当前没有等待回读的模拟动作。");
+      taskEvent({ type: 'BEGIN_VERIFY' });
       // A read attempt is not a write retry. Keep unavailable evidence distinct
       // from a mismatching target, and persist it before allowing another check.
       state.readbackAttempts ??= [];
       if (state.executionScenario === 'readback_unavailable' && state.readbackAttempts.length === 0) {
+        taskEvent({ type: 'READBACK', readback: null });
         state.readbackAttempts.push({ status: 'UNKNOWN', code: 'target_unavailable', simulated: true, realPlatformVerified: false });
         state.message = '结果未知（UNKNOWN）：本次模拟回读不可用，没有取得目标状态；禁止重复提交。可再次核对，演示将在下一次回读恢复。';
         return snapshot();
       }
       const scope = { planId: state.preview.id, connectorId: 'offline_demo', storeId: state.storeId };
+      const readback = { ...scope, items: state.preview.items.map(item => ({ targetId: item.productId, value: platformPrices.get(item.productId) })) };
+      taskEvent({ type: 'READBACK', readback });
       const verification = verifyTargetState({ ...scope,
         expected: state.preview.items.map(item => ({ targetId: item.productId, value: item.after })),
-        readback: { ...scope, items: state.preview.items.map(item => ({ targetId: item.productId, value: platformPrices.get(item.productId) })) }
+        readback
       });
       // Preserve the v1 checkpoint contract while sharing the actual comparator.
       // The mock always has a complete integer price map; unavailable reads are
@@ -130,7 +146,6 @@ export function createOfflineStoreDemo({ store } = {}) {
       return snapshot();
     }
   };
-  if (!store) return commands;
   // Only safe for this wholly local mock: simulated target and task are saved
   // together. Real connectors need a pre-submit checkpoint and reconciliation.
   return Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, (...args) => {
@@ -138,11 +153,14 @@ export function createOfflineStoreDemo({ store } = {}) {
     const before = structuredClone(state);
     const pricesBefore = new Map(platformPrices);
     let result;
-    try { result = command(...args); }
+    try {
+      result = command(...args);
+      if (name !== 'snapshot') validateDemoState(state, initialProducts, platformPrices);
+    }
     catch (error) { state = before; platformPrices = pricesBefore; throw error; }
-    if (name !== 'snapshot') {
+    if (store && name !== 'snapshot') {
       try {
-        revision = store.save('pharmacy-session', { version: 1, state, platformPrices: [...platformPrices] }, revision);
+        revision = store.save('pharmacy-session', { version: state.task ? 2 : 1, state, platformPrices: [...platformPrices] }, revision);
       } catch (error) {
         state = before; platformPrices = pricesBefore; storageFailed = true;
         throw error;

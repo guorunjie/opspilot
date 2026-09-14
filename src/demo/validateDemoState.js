@@ -1,10 +1,30 @@
 import { isDeepStrictEqual as equal } from 'node:util';
 import { assertPlatformAction } from '../domain/model/platformActionProtocol.js';
 import { verifyTargetState } from '../verification/verifyTargetState.js';
+import { assertTask } from '../task/taskState.js';
 
 // Validate this version's synthetic checkpoint, not arbitrary production state.
 export function validateDemoState(state, initialProducts, prices) {
   const require = condition => { if (!condition) throw new Error('演示存档不一致；保留原记录，禁止自动重跑。'); };
+  if (state.task) {
+    assertTask(state.task);
+    const task = state.task;
+    require(task.id === state.sessionId && task.namespace === 'offline_demo'
+      && task.connectorId === 'offline_demo' && task.storeId === state.storeId);
+    require(equal(task.plan, state.preview ? { id: state.preview.id,
+      items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) } : null));
+    require(Boolean(task.approval) === Boolean(state.action));
+    require(Boolean(task.run) === (state.submissionCount === 1));
+    const expectedStatus = !state.diagnosis ? 'NOT_CHECKED' : !state.preview ? 'READY'
+      : !state.submissionCount ? 'AWAITING_APPROVAL'
+      : state.action?.status === 'succeeded' ? 'VERIFIED'
+      : state.action?.status === 'readback_inconsistent' ? 'FAILED'
+      : state.executionScenario === 'response_lost' || state.readbackAttempts?.at(-1)?.status === 'UNKNOWN' ? 'UNKNOWN' : 'SUBMITTED';
+    require(task.status === expectedStatus);
+    require(task.verifications.length === (state.readbackAttempts?.length ?? 0));
+    if (state.review) require(equal(task.verifications.at(-1)?.items, state.review.items.map(item => ({ targetId: item.productId,
+      expected: item.expected, observed: item.observed, status: item.matched ? 'VERIFIED' : 'FAILED' }))));
+  }
   require(equal(state.products, initialProducts));
   require(typeof state.sessionId === 'string' && state.sessionId.length > 0);
   require(state.submissionCount === 0 || state.submissionCount === 1);
