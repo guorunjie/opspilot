@@ -46,3 +46,48 @@ test("demo boot isolates paths before readiness and denies external requests and
   assert.throws(() => handler(event, "install-tasks"), /拒绝/);
   assert.equal(handler(event, "snapshot").mode, "offline_demo");
 });
+
+for (const confirmedIdle of [true, false]) test(`desktop fences reset and quit; idle confirmation=${confirmedIdle}`, async t => {
+  let handler, completePreview, markIdle, rejectIdle;
+  const listeners = {};
+  let previewed = false, resets = 0, quits = 0;
+  const idle = new Promise((resolve, reject) => { markIdle = resolve; rejectIdle = reject; });
+  class Window {
+    constructor() { this.webContents = { mainFrame: {}, setWindowOpenHandler() {}, on() {} }; }
+    async loadFile() {}
+  }
+  const result = await startOfflineDemo({
+    app: { getPath: () => path.resolve('output/test-app-data'), setName() {}, setPath() {},
+      commandLine: { appendSwitch() {} }, whenReady: async () => {},
+      on: (name, fn) => { listeners[name] = fn; }, quit: () => { quits++; } },
+    BrowserWindow: Window,
+    ipcMain: { handle: (_, fn) => { handler = fn; }, removeHandler() {} },
+    session: { fromPartition: () => ({ webRequest: { onBeforeRequest() {} },
+      setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) }
+  }, () => ({ snapshot: () => ({ previewed }),
+    preview: () => new Promise(resolve => { completePreview = () => { previewed = true; resolve(); }; }),
+    reset: () => { resets++; }, whenIdle: () => idle }));
+  t.after(() => fs.rm(result.cache, { recursive: true, force: true }));
+  const event = { sender: result.window.webContents, senderFrame: result.window.webContents.mainFrame };
+  const operation = handler(event, 'preview');
+  await Promise.resolve();
+  assert.deepEqual(handler(event, 'snapshot'), { previewed: false });
+  assert.throws(() => handler(event, 'reset'), /仍在进行/);
+  let prevented = false;
+  listeners['before-quit']({ preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, true); assert.equal(quits, 0);
+  completePreview(); await Promise.resolve(); await Promise.resolve();
+  assert.throws(() => handler(event, 'reset'), /仍在进行/);
+  assert.equal(quits, 0);
+  if (confirmedIdle) {
+    markIdle(); assert.deepEqual(await operation, { previewed: true });
+    assert.equal(quits, 1);
+  } else {
+    const rejected = assert.rejects(operation, /termination unknown/);
+    rejectIdle(new Error('termination unknown')); await rejected;
+    assert.throws(() => handler(event, 'reset'), /仍在进行/);
+    assert.deepEqual(handler(event, 'snapshot'), { previewed: true });
+    assert.equal(quits, 0);
+  }
+  assert.equal(resets, 0);
+});

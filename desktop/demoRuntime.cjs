@@ -33,16 +33,42 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
   window.webContents.on("will-attach-webview", (event) => event.preventDefault());
   const commands = {
     snapshot: () => demo.snapshot(), diagnose: () => demo.diagnose(),
-    preview: () => { demo.preview(); return demo.snapshot(); },
+    preview: async () => { await demo.preview(); return demo.snapshot(); },
     confirm: (input) => demo.confirm(input), execute: (input) => demo.execute(input),
     readback: () => demo.readback(), reset: () => demo.reset(),
     opportunity: input => demo.opportunity(input)
   };
+  let pending = null, quitRequested = false;
   ipcMain.handle("opspilot-demo:command", (event, command, input) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || !Object.hasOwn(commands, command)) {
       throw new Error("演示请求被拒绝。");
     }
-    return commands[command](input);
+    if (command === 'snapshot') return commands.snapshot();
+    if (pending || quitRequested) throw new Error('操作仍在进行，请等待完成后再继续。');
+    // Fence in the trusted main process, not only the renderer's disabled UI.
+    // Do not queue stale confirmations or resets behind an outstanding write.
+    let idleConfirmed = false;
+    pending = Promise.resolve().then(() => commands[command](input)).finally(async () => {
+      // An async Agent may report timeout before the underlying work stops.
+      // Such adapters must expose whenIdle; never turn a timeout into idle.
+      if (typeof demo.whenIdle === 'function') await demo.whenIdle();
+      idleConfirmed = true;
+    });
+    const operation = pending;
+    operation.then(() => {
+      pending = null;
+      if (quitRequested) app.quit();
+    }, () => {
+      // If external termination is unconfirmed, retain the fence. The user
+      // can still inspect a snapshot, but no reset or automatic retry occurs.
+      if (!idleConfirmed) return;
+      pending = null;
+      if (quitRequested) app.quit();
+    });
+    return operation;
+  });
+  app.on('before-quit', event => {
+    if (pending) { quitRequested = true; event.preventDefault(); }
   });
   app.on("window-all-closed", () => app.quit());
   app.on("will-quit", () => ipcMain.removeHandler("opspilot-demo:command"));
