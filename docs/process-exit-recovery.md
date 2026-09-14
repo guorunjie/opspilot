@@ -2,7 +2,7 @@
 
 ## Current scope
 
-These are development changes after the immutable `v0.1.0-dev.4` release, not an installed-version upgrade. The desktop now has a scoped recovery path, tested in Windows x64 and macOS arm64 installed candidates. Native macOS confirmation interaction and unassisted user acceptance remain pending. Version `0.1.0-dev.5` is being prepared; its own versioned assets still require verification. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
+The scoped recovery path is published in the early preview `v0.1.0-dev.5`, tested in Windows x64 and macOS arm64 installed candidates. This does not mean the user's existing local installation was upgraded. Native macOS confirmation interaction and unassisted user acceptance remain pending. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
 
 The desktop records an installation identity and the owning process for new asynchronous Demo claims. It explains unresolved ownership and disables mutation controls. When every held claim belongs to a confirmed absent process on this installation, it offers **恢复待核实记录（不重新提交）**. This is not an automatic or generic unlock.
 
@@ -47,6 +47,8 @@ Separately, the Windows source desktop's real native recovery dialog was visuall
 Tests use independent temporary data; the existing local installation and its reviews were not upgraded or reset. These results do not establish OS power-loss durability, non-developer usability or real-platform execution.
 
 ## Packaged recovery evidence and remaining work
+
+The versioned [dev.5 tag run 34908942630](https://github.com/guorunjie/opspilot/actions/runs/34908942630), commit `18ebfd80490c64c079ad2fcf8203479a8e33c50c`, passed both platforms and created a draft. Downloaded results confirm all 12 ordinary scenarios, five recovery boundaries, reset/repeat and uninstall. Local installer hashes match the same-run provenance, install evidence and GitHub asset digests: Windows `30f2e6946ea05f1cebce8216857dfda0091d7abb03fcfa2376fc12f1455ab540`, macOS `3cd62fae977038c75f1ef58055a4971ec85a1876746159077d4290ba0d3a1ef4`. All source hashes match the exact tag checkout with platform line endings; installed and unpacked ASAR hashes agree. Windows START/FAILED/count 0 and macOS target-written/VERIFIED/count 1 screenshots were inspected. After review, the draft was published as an early prerelease, not full Foundation acceptance. Later source-only legacy archive switching is not included in that tag.
 
 Run [34906784022](https://github.com/guorunjie/opspilot/actions/runs/34906784022), commit `c661144e419c22cf54089e4c5c075305a74e4cf8`, completed with a mixed result. macOS arm64 installed-app evidence passed all five recovery boundaries: START/reservation yielded FAILED with zero submissions, target-written/BEGIN_VERIFY/saved-VERIFIED yielded VERIFIED with one submission. The downloaded result/install records and target-written review screenshot were inspected; uninstall also passed. Dialog answers were controlled, not native macOS interaction. Windows built its installer but that installer exited with status 3221225477 before application launch; no Windows packaged recovery conclusion can be drawn. Root cause remains unknown. The next candidate now retains a structured failure record and the failed Windows installer artifact for diagnosis, without automatic retry or release publication.
 

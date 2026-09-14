@@ -4,7 +4,7 @@
 
 ## 从源码启动
 
-普通用户可直接使用 [dev.4 安装包](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.4)，无需以下开发命令或 Node.js。Windows 安装后打开桌面或开始菜单中的“OpsPilot Open Core Demo”，不是旧商业版“OpsPilot”。macOS 当前提供 Apple Silicon 版本。安装包未配置可信发布者签名或公证；不要关闭系统安全检查。
+普通用户可直接使用 [dev.5 安装包](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.5)，无需以下开发命令或 Node.js。Windows 安装后打开桌面或开始菜单中的“OpsPilot Open Core Demo”，不是旧商业版“OpsPilot”。macOS 当前提供 Apple Silicon 版本。安装包未配置可信发布者签名或公证；不要关闭系统安全检查。
 
 需要 Node.js 24 或更高版本，以及 Git。下载依赖需要网络；安装完成后的 Demo 操作和模拟回读不访问真实平台。
 
