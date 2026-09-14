@@ -22,10 +22,10 @@ function renderOpportunities(container,state,busy){
   const PRI=new Map([['cost','DEMO-002'],['inventory','DEMO-003'],['pricing','DEMO-001']]);
   const DEF=new Map([
     ['cost',{label:'成本资料',next:'本项仅提示补充成本，不提供修改入口。'}],
-    ['inventory',{label:'库存资料',next:'先核对实物库存；库存为零不代表已估算缺货损失。本项不提供补货执行入口。'}],
+    ['inventory',{label:'库存资料',next:'先核对实物库存；库存为零不代表已估算缺货损失。可在下方“库存与活动机会”体验独立的库存同步模拟。'}],
     ['pricing',{label:'定价资料',next:'查看依据后，使用下方“查看跟价预览”，再明确确认模拟操作。'}]
   ]);
-  const LIMIT='本详情只读，不会执行或自动授权；完整演示可在明确确认后模拟调价。';
+  const LIMIT='本详情只读，不会执行或自动授权；下方价格、库存与活动模拟流程需要分别预览、明确确认。';
   const num=function(v){return typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v:'未知';};
   const money=function(v){return num(v)==='未知'?'未知':'¥'+(v/100).toFixed(2);};
   const margin=function(cost,target){
@@ -77,6 +77,60 @@ function renderOpportunities(container,state,busy){
   nodes.push(el('p','以上为合成演示数据，不调用真实平台接口，也不构成盈利承诺。'));
   container.replaceChildren.apply(container,nodes);
 }
+function renderSupplemental() {
+  const section = $('additional-section');
+  section.hidden = !state.diagnosis || !state.task;
+  const container = $('additional-opportunities');
+  container.replaceChildren();
+  if (section.hidden) return;
+  for (const [kind, fixture] of Object.entries(state.opportunityCatalog)) {
+    const record = state.supplemental?.[kind];
+    const task = record?.task;
+    const label = kind === 'inventory' ? '库存' : '活动';
+    const stateLabel = value => ({ AWAITING_APPROVAL: '等待确认或执行', SUBMITTED: '已提交，待核对',
+      UNKNOWN: '结果未知', VERIFIED: '模拟回读一致', FAILED: '模拟目标不一致' }[value] ?? value);
+    const valueLabel = value => value === null ? '未知' : kind === 'inventory' ? `${value} 件` : value === 1 ? '已报名' : '未报名';
+    const card = document.createElement('article');
+    card.dataset.kind = kind;
+    const add = (tag, value, parent = card) => {
+      const element = document.createElement(tag); element.textContent = value; parent.append(element); return element;
+    };
+    const send = (operation, extra = {}) => command('opportunity', { kind, operation, ...extra });
+    const button = (name, disabled, run, parent = card) => {
+      const element = add('button', name, parent); element.disabled = busy || disabled;
+      element.addEventListener('click', run); return element;
+    };
+    add('h3', fixture.title);
+    add('p', `建议依据：${fixture.basis}`);
+    add('p', `边界：${fixture.limitation}`);
+    button(`预览${label}建议`, !!task?.approval, () => send('preview'));
+    if (task) {
+      add('p', `操作预览：${fixture.title}，${valueLabel(fixture.before)} → ${valueLabel(fixture.value)}。`);
+      if (!task.approval) {
+        button(`确认${label}预览`, false, () => {
+          if (window.confirm(`确认本次${label}模拟？\n${fixture.title}\n${fixture.before} → ${fixture.value} ${fixture.unit}\n${fixture.limitation}`))
+            send('confirm', { planId: task.plan.id, confirmed: true });
+        });
+      } else add('p', '已保存本次模拟确认；重启不会自动执行，此确认不适用于其他任务或真实门店。');
+      const cannotWrite = !task.approval || !!task.run;
+      button(`执行${label}模拟`, cannotWrite, () => send('execute', { scenario: 'normal' }));
+      const advanced = add('details', '');
+      add('summary', `${label}异常场景（可选，只能选择一种执行）`, advanced);
+      for (const [scenario, name] of [['response_lost', '响应丢失'], ['mismatch', '目标不一致'], ['readback_unavailable', '首次回读不可用']])
+        button(`模拟${label}${name}`, cannotWrite, () => send('execute', { scenario }), advanced);
+      const canRead = !!task.run && ['SUBMITTED', 'UNKNOWN'].includes(task.status);
+      button(`核对${label}模拟结果`, !canRead, () => send('readback'));
+      add('p', `任务状态：${stateLabel(task.status)}（${task.status}）；提交次数：${record.submissionCount}。`);
+      if (!record.review) add('p', '尚无回读证据，提交不等于成功。');
+      else {
+        const review = record.review;
+        add('p', `复盘：${stateLabel(review.status)}（${review.status}）。${review.items.map(item => `预期 ${valueLabel(item.expected)} / 回读 ${valueLabel(item.observed)}`).join('；')}。实际经营收益：未知。`);
+        if (review.status === 'UNKNOWN') add('p', '没有取得目标状态，请再次核对，不要重新执行。');
+      }
+    }
+    container.append(card);
+  }
+}
 function render() {
   text("status", state.message);
   const diagnosis = $("diagnosis");
@@ -122,6 +176,7 @@ function render() {
   $("readback").textContent = unavailable ? '再次核对（不重复提交）' : '核对模拟平台结果';
   if (unavailable) text('review', '模拟平台暂时无法回读；尚无可核实的目标价格。请再次核对，不要重新执行。');
   $("reset").disabled = busy;
+  renderSupplemental();
 }
 async function command(name, input) {
   if (busy) return;

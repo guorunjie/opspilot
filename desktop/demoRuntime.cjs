@@ -35,7 +35,8 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
     snapshot: () => demo.snapshot(), diagnose: () => demo.diagnose(),
     preview: () => { demo.preview(); return demo.snapshot(); },
     confirm: (input) => demo.confirm(input), execute: (input) => demo.execute(input),
-    readback: () => demo.readback(), reset: () => demo.reset()
+    readback: () => demo.readback(), reset: () => demo.reset(),
+    opportunity: input => demo.opportunity(input)
   };
   ipcMain.handle("opspilot-demo:command", (event, command, input) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || !Object.hasOwn(commands, command)) {

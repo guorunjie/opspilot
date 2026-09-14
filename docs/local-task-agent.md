@@ -38,6 +38,7 @@ returning a Promise from an ordinary function is also rejected but cannot undo
 side effects already started by trusted hook code.
 
 Still pending: durable asynchronous Agent execution, structured multi-intent
-planning, richer Memory adapters, browser/RPA integration, stockout and campaign
-execution, Enterprise dependency migration and real-store validation. These
+planning, richer Memory adapters, browser/RPA integration,
+Enterprise dependency migration and real-store validation. Stockout sync and
+fixed campaign enrollment now also use this runtime in the isolated Demo. These
 local tests and the offline Demo do not prove those requirements complete.

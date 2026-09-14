@@ -1,6 +1,11 @@
 // Pure local synthetic target. No I/O, credentials, scheduling or production
 // defaults. Caller owns approval and atomic persistence with task deduplication.
 export function createMockPriceConnector({ storeId, prices }) {
+  return createMockValueConnector({ storeId, values: prices });
+}
+
+// Same integer-target contract for synthetic prices, quantities and status codes.
+export function createMockValueConnector({ storeId, values: prices }) {
   const id = value => typeof value === 'string' && value.trim().length > 0;
   const integer = value => Number.isSafeInteger(value) && value >= 0;
   const require = (condition, message) => { if (!condition) throw new Error(`Mock connector: ${message}`); };

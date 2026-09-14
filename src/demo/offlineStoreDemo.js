@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { createTask } from '../task/taskState.js';
 import { createLocalTaskAgent } from '../agent/localTaskAgent.js';
+import { runSupplemental, supplementalCatalog } from './supplementalOpportunities.js';
 import { createMockPriceConnector } from '../connector/mockPriceConnector.js';
 import { createDemoPriceCapabilities } from './demoPriceCapabilities.js';
 import { diagnoseProducts, createRulePricePlanner } from '../domain/model/pricePlanning.js';
@@ -32,7 +33,7 @@ export function createOfflineStoreDemo({ store } = {}) {
     items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) });
   let revision = 0;
   let storageFailed = false;
-  const snapshot = () => structuredClone(state);
+  const snapshot = () => structuredClone({ ...state, opportunityCatalog: supplementalCatalog() });
   const move = (status, options = {}) => {
     state.action = transitionPlatformAction(state.action, status, options);
   };
@@ -58,7 +59,8 @@ export function createOfflineStoreDemo({ store } = {}) {
     const saved = store.read('pharmacy-session');
     if (saved) {
       const value = saved.value;
-      if (![1, 2].includes(value?.version) || (value.version === 2 ? !value.state?.task : Object.hasOwn(value.state ?? {}, 'task'))
+      if (![1, 2, 3].includes(value?.version) || (value.version >= 2 ? !value.state?.task : Object.hasOwn(value.state ?? {}, 'task'))
+        || (value.version === 3 ? !value.state?.supplemental : Object.hasOwn(value.state ?? {}, 'supplemental'))
         || value.state?.mode !== 'offline_demo' || value.state?.simulated !== true
         || value.state?.realPlatformVerified !== false || value.state?.storeId !== 'demo-store'
         || !Array.isArray(value.platformPrices) || value.platformPrices.length !== 3
@@ -77,6 +79,15 @@ export function createOfflineStoreDemo({ store } = {}) {
   }
   const commands = {
     snapshot, reset,
+    opportunity({ kind, operation, planId, confirmed, scenario } = {}) {
+      if (!state.diagnosis || !state.task) throw new Error('请先运行诊断；旧版存档请在完成原任务后明确复位，再体验新机会。');
+      const record = runSupplemental({ sessionId: state.sessionId, kind,
+        record: state.supplemental?.[kind], operation, planId, confirmed, scenario });
+      state.supplemental ??= {};
+      state.supplemental[kind] = record;
+      state.message = `离线模拟：${supplementalCatalog()[kind].title}，任务状态 ${record.task.status}。提交不等于成功；仅回读核对后可确认模拟结果。`;
+      return snapshot();
+    },
     diagnose() {
       if (state.action) throw new Error("当前动作已有确认，请先完成回读或复位演示。");
       // Rechecking an already previewed unchanged fixture is not a new plan.
@@ -173,7 +184,7 @@ export function createOfflineStoreDemo({ store } = {}) {
     catch (error) { state = before; connector = createMockPriceConnector({ storeId: state.storeId, prices: pricesBefore }); throw error; }
     if (store && name !== 'snapshot') {
       try {
-        revision = store.save('pharmacy-session', { version: state.task ? 2 : 1, state, platformPrices: connector.snapshot() }, revision);
+        revision = store.save('pharmacy-session', { version: state.supplemental ? 3 : state.task ? 2 : 1, state, platformPrices: connector.snapshot() }, revision);
       } catch (error) {
         state = before; connector = createMockPriceConnector({ storeId: state.storeId, prices: pricesBefore }); storageFailed = true;
         throw error;

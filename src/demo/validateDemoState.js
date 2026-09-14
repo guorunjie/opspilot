@@ -3,10 +3,17 @@ import { assertPlatformAction } from '../domain/model/platformActionProtocol.js'
 import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { assertTask } from '../task/taskState.js';
 import { planPrices, diagnoseProducts } from '../domain/model/pricePlanning.js';
+import { validateSupplemental } from './supplementalOpportunities.js';
 
 // Validate this version's synthetic checkpoint, not arbitrary production state.
 export function validateDemoState(state, initialProducts, prices) {
   const require = condition => { if (!condition) throw new Error('演示存档不一致；保留原记录，禁止自动重跑。'); };
+  if (Object.hasOwn(state, 'supplemental')) {
+    require(state.task && state.diagnosis && state.supplemental && typeof state.supplemental === 'object' && !Array.isArray(state.supplemental));
+    const kinds = Object.keys(state.supplemental);
+    require(kinds.length > 0 && kinds.every(kind => ['inventory', 'campaign'].includes(kind)));
+    for (const kind of kinds) validateSupplemental(state.supplemental[kind], state.sessionId, kind);
+  }
   if (state.task) {
     assertTask(state.task);
     const task = state.task;

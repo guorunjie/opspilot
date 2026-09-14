@@ -19,6 +19,7 @@
     "desktop/demo/demo.js",
     "desktop/demo/demo.css",
     "src/demo/offlineStoreDemo.js",
+    "src/demo/supplementalOpportunities.js",
     "src/demo/validateDemoState.js",
     "src/verification/verifyTargetState.js",
     "src/task/taskState.js",
@@ -27,6 +28,7 @@
     "src/connector/mockPriceConnector.js",
     "src/demo/demoPriceCapabilities.js",
     "src/domain/model/pricePlanning.js",
+    "src/domain/model/operationPlanning.js",
     "src/domain/model/platformActionProtocol.js",
     "src/storage/sqliteStateStore.js",
     "src/storage/demoStoragePath.js"

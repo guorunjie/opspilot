@@ -12,4 +12,6 @@ table { width: 100%; border-collapse: collapse; margin: 12px 0; } th, td { paddi
 details { border: 1px solid #d6e1da; border-radius: 8px; padding: 12px; margin: 12px 0; }
 summary { cursor: pointer; font-weight: 600; line-height: 1.6; }
 summary:focus-visible { outline: 3px solid #d08b00; outline-offset: 3px; }
+#additional-opportunities article + article { border-top: 1px solid #d6e1da; margin-top: 24px; padding-top: 16px; }
+#additional-opportunities p { line-height: 1.6; overflow-wrap: anywhere; }
 details p { line-height: 1.6; margin: 8px 0; overflow-wrap: anywhere; }
