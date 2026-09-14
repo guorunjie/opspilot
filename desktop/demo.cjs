@@ -4,12 +4,12 @@ const { startOfflineDemo } = require("./demoRuntime.cjs");
 // Electron's entry loader need not set require.main to this module.
 // Keep the executable entry separate from the importable testable runtime.
 startOfflineDemo(electron, async ({ dataDir }) => {
-  const { createOfflineStoreDemo } = await import("../src/demo/offlineStoreDemo.js");
+  const { createDesktopDemo } = await import("../src/demo/desktopDemoFactory.js");
   const { openStateStore } = await import('../src/storage/sqliteStateStore.js');
   const { prepareDemoDatabasePath } = await import('../src/storage/demoStoragePath.js');
   const store = openStateStore(prepareDemoDatabasePath(dataDir), 'offline-demo');
   try {
-    const demo = createOfflineStoreDemo({ store });
+    const demo = createDesktopDemo({ store });
     electron.app.once('will-quit', () => store.close());
     return demo;
   } catch (error) { store.close(); throw error; }

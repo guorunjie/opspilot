@@ -77,7 +77,8 @@ async function scenarioRun(scenario) {
     await waitText('#action-state', 'UNKNOWN');
     const unknown = await snapshot();
     assert.equal(unknown.action.status, 'awaiting_readback');
-    assert.equal(unknown.action.evidence, null);
+    assert.equal(unknown.task.verifications.at(-1).exact, false);
+    assert.equal(unknown.task.verifications.at(-1).items[0].observed, null);
     assert.equal(unknown.review, null);
     assert.equal(unknown.submissionCount, 1);
     assert.equal(unknown.readbackAttempts.length, 1);
@@ -90,7 +91,7 @@ async function scenarioRun(scenario) {
   await waitText('#review', '项模拟回读一致');
   const reviewed = await snapshot();
   const mismatch = scenario === 'mismatch';
-  assert.equal(reviewed.action.status, mismatch ? 'readback_inconsistent' : 'succeeded');
+  assert.equal(reviewed.task.verifications.at(-1).status, mismatch ? 'FAILED' : 'VERIFIED');
   assert.equal(reviewed.submissionCount, 1);
   assert.equal(reviewed.review.realPlatformVerified, false);
   assert.equal(reviewed.review.matchedCount, mismatch ? 0 : 1);
@@ -114,7 +115,7 @@ async function scenarioRun(scenario) {
   await reopen(reset);
   await close();
   assert.deepEqual(errors, []);
-  return { scenario, submissionCount: 1, status: reviewed.action.status };
+  return { scenario, submissionCount: 1, status: reviewed.task.status };
 }
 async function supplementalConfirm(label, accept) {
   const waiting = page.waitForEvent('dialog');
@@ -129,7 +130,7 @@ async function supplementalRun(scenario) {
   await open();
   const initial = await snapshot();
   assert.equal(initial.diagnosis, null);
-  assert.equal(initial.supplemental, undefined, 'Never reset a pre-existing supplemental task');
+  assert.deepEqual(initial.supplemental, {}, 'Never reset a pre-existing supplemental task');
   assert.equal(initial.action, null);
   await button('运行演示诊断').click();
   for (const [kind, label] of [['inventory', '库存'], ['campaign', '活动']]) {
@@ -190,7 +191,7 @@ async function supplementalRun(scenario) {
   await waitText('#action-state', '尚未确认。');
   const reset = await snapshot();
   assert.notEqual(reset.sessionId, reviewed.sessionId);
-  assert.equal(reset.supplemental, undefined);
+  assert.deepEqual(reset.supplemental, {});
   assert.equal(reset.diagnosis, null);
   await reopen(reset);
   await close();
