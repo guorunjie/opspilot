@@ -14,5 +14,5 @@
     "desktop:dist:win": "electron-builder --config electron-builder.json --win nsis --x64 --publish never",
     "desktop:dist:mac": "electron-builder --config electron-builder.json --mac dmg --publish never"
   },
-  "devDependencies": { "electron": "42.7.0", "electron-builder": "26.8.1" }
+  "devDependencies": { "electron": "42.7.0", "electron-builder": "26.8.1", "playwright": "1.59.1" }
 }

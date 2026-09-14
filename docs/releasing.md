@@ -13,6 +13,8 @@
 
 “未签名候选”表示未配置可信发行者签名：Windows 包没有数字签名；macOS builder 可能使用 ad-hoc 签名，这不等于 Developer ID 签名或 Apple 公证。macOS 应用目录遵循 executableName，为 `OpsPilot-Core-Demo.app`，不是显示名称。
 
+候选工作流还运行仅限临时 CI 的安装验收：Windows 静默安装 NSIS，macOS 只读挂载 DMG 并复制应用到临时目录；核对安装后的 app.asar 与构建目录一致，再用 Playwright 驱动四种场景、逐次重启和复位，最后卸载/移除测试应用。失败不上传候选发行资产，截图及结果保存在独立 `desktop-evidence-*` artifact。该检查不是交互安装向导、下载隔离标记、Gatekeeper 或普通用户体验验收，也不应在本机伪造 CI 环境变量运行。
+
 ## 发布草稿前
 
 1. 确认两平台产物、标签、提交和版本对应；检查校验值与许可证。

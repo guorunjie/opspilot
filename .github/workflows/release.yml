@@ -60,6 +60,16 @@ jobs:
         run: npm test
       - name: Build unsigned installer candidate
         run: ${{ matrix.command }}
+      - name: Exercise actual installer and packaged Demo
+        run: node scripts/verify-installer.mjs
+      - name: Preserve desktop verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-evidence-${{ matrix.label }}
+          path: output/playwright/packaged-ci/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Prepare release assets
         run: node scripts/prepare-release.mjs
       - name: Upload platform assets
