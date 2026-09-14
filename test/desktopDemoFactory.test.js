@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { createDesktopDemo } from '../src/demo/desktopDemoFactory.js';
 import { createOfflineStoreDemo } from '../src/demo/offlineStoreDemo.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 test('fresh desktop uses async persistence and prevents silent downgrade', async () => {
   const store = openStateStore(':memory:', 'desktop');
@@ -125,6 +129,44 @@ test('corrupt embedded archive blocks opening before async initialization', () =
     assert.throws(() => createDesktopDemo({ store }), /存档无效/);
     assert.equal(store.read('async-demo-active'), null);
   } finally { store.close(); }
+});
+
+test('actual process exit after archive marker preserves old row and resumes new initialization', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'opspilot-upgrade-exit-'));
+  const file = path.join(directory, 'demo.sqlite');
+  let store;
+  try {
+    store = openStateStore(file, 'offline-demo');
+    const old = createOfflineStoreDemo({ store }); old.diagnose();
+    const p = old.preview(); old.confirm({ previewId: p.id, confirmed: true });
+    const original = store.read('pharmacy-session');
+    store.close(); store = null;
+    const source = `
+      import { openStateStore } from ${JSON.stringify(new URL('../src/storage/sqliteStateStore.js', import.meta.url).href)};
+      import { createDesktopDemo } from ${JSON.stringify(new URL('../src/demo/desktopDemoFactory.js', import.meta.url).href)};
+      const store = openStateStore(${JSON.stringify(file)}, 'offline-demo');
+      const wrapped = { read: key => store.read(key), save: (key, value, revision) => {
+        const saved = store.save(key, value, revision);
+        if (key === 'pharmacy-session' && value.version === 4 && value.legacyArchive) process.kill(process.pid, 'SIGKILL');
+        return saved;
+      } };
+      const demo = createDesktopDemo({ store: wrapped });
+      demo.upgrade({ confirmed: true, expectedRevision: ${original.revision} });
+      process.exit(99);
+    `;
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', source], { timeout: 15000, encoding: 'utf8', windowsHide: true });
+    assert.equal(child.error, undefined);
+    assert.equal(child.status, process.platform === 'win32' ? 1 : null);
+    assert.equal(child.signal, process.platform === 'win32' ? null : 'SIGKILL');
+    store = openStateStore(file, 'offline-demo');
+    assert.deepEqual(store.read('pharmacy-session'), { revision: original.revision + 1,
+      value: { version: 4, engine: 'async-demo', legacyArchive: original } });
+    assert.equal(store.read('async-demo-active'), null);
+    const reopened = createDesktopDemo({ store }).snapshot();
+    assert.deepEqual(reopened.legacyArchive.task, original.value.state.task);
+    assert.equal(reopened.task.status, 'NOT_CHECKED'); assert.equal(reopened.task.approval, null);
+    assert.equal(reopened.submissionCount, 0);
+  } finally { store?.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('mixed or missing format markers fail closed without choosing a record', () => {
