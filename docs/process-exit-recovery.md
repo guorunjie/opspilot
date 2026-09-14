@@ -28,7 +28,8 @@ A changed claim or uncertain write acknowledgement fails closed. Uncertain recov
 
 ## Verified development evidence
 
-- Full local suite: **218 tests passed**. Identity tests cover persistence, fresh instances, independent installation directories, corruption preservation, hard-link rejection and caller-alias isolation. Composition tests inspect acquired shell/price/reset claims and confirm identities are omitted from snapshots.
+- Full local suite: **220 tests passed**. Identity tests cover persistence, fresh instances, independent installation directories, corruption preservation, hard-link rejection and caller-alias isolation. Composition tests inspect acquired shell/price/reset claims and confirm identities are omitted from snapshots.
+- Additional real Node-child exit tests cover BEGIN_VERIFY and a saved VERIFIED checkpoint before ownership release. The former recovers to UNKNOWN and independently reads again without resubmitting; the latter preserves the exact task history, verification evidence and review instead of downgrading a verified result. These are not packaged desktop tests.
 - `test/asyncDemoProcessExit.test.js` exits a real Node child without cleanup at three durable boundaries: Task START, scenario reservation, and synthetic target write before acknowledgement. Both claims survive; reopen refuses execution/reset. Only after the supervisor observes that exact child's termination does the test invoke lower-level reconciliation. Recovery moves the task to UNKNOWN; independent readback yields FAILED for the unchanged target or VERIFIED for a matching synthetic target. Submission counts remain zero or one and execution cannot repeat.
 - Windows **source Electron** regression passed all four price scenarios, approval/submission close-and-reopen preservation, normal supplemental inventory/campaign flows, and reset cancel/confirm. The mismatch review viewport was visually checked: FAILED, expected 18 versus observed 20, submission count one.
 - Windows source two-process testing passed: secondary exit zero, primary window restored, forwarded execution arguments ignored, unchanged snapshot, and normal reopen reacquiring the lock.
@@ -41,6 +42,6 @@ Tests use independent temporary data; the existing local installation and its re
 
 ## Next required vertical slice
 
-Verify actual packaged Windows and macOS recovery behavior and native confirmation interaction. Extend acceptance to interrupted readback and additional storage-failure boundaries. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
+Verify actual packaged Windows and macOS recovery behavior and native confirmation interaction, including interrupted readback. Extend storage-failure coverage. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
 
 Until the remaining checks pass, do not claim full desktop recovery acceptance or upgrade the immutable dev.4 release in place.

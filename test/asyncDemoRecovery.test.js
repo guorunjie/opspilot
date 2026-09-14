@@ -23,6 +23,8 @@ const child = (file, hostId, point, recovery = false) => {
       if (point==='started' && key.startsWith('task:') && value.task?.status==='EXECUTING') process.exit(23);
       if (point==='reserved' && key.startsWith('async-price:') && value.scenario!==null && value.submissionCount===0) process.exit(23);
       if (point==='written' && key.startsWith('async-price:') && value.submissionCount===1) process.exit(23);
+      if (point==='verify-started' && key.startsWith('task:') && value.task?.status==='VERIFYING') process.exit(23);
+      if (point==='verify-saved' && key.startsWith('task:') && value.task?.status==='VERIFIED') process.exit(23);
       if (point==='shell-taken' && key==='owner:async-demo-shell' && value.token && value.executor?.pid===process.pid) process.exit(23);
       if (point==='price-taken' && key.startsWith('owner:demo-') && value.token && value.executor?.pid===process.pid) process.exit(23);
       if (point==='interrupted' && key.startsWith('task:') && value.task?.status==='UNKNOWN') process.exit(23);
@@ -34,6 +36,7 @@ const child = (file, hostId, point, recovery = false) => {
       const call=async(method,input)=>{await demo[method](input);await demo.whenIdle();};
       await call('diagnose');const plan=await demo.preview();await demo.whenIdle();
       await call('confirm',{previewId:plan.id,confirmed:true});await call('execute');
+      if (${JSON.stringify(point)}.startsWith('verify-')) await call('readback');
     }
     process.exit(99);`;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', source, file, hostId],
@@ -50,11 +53,12 @@ const fixture = async run => {
     return { store, executor, demo: createAsyncStoreDemo({ store, executor }) };
   } }); } finally { store?.close(); rmSync(root, { recursive: true }); }
 };
-for (const point of ['started', 'reserved', 'written']) {
+for (const point of ['started', 'reserved', 'written', 'verify-started']) {
   test(`confirmed local recovery after ${point} never resubmits and requires independent readback`, () => fixture(async ({ file, hostId, open }) => {
     child(file, hostId, point);
     const { demo } = open();
     const before = demo.snapshot();
+    assert.equal(before.task.status, point === 'verify-started' ? 'VERIFYING' : 'EXECUTING');
     assert.equal(before.recovery.canRecover, true);
     assert.throws(() => demo.recover({ previousExecutorStopped: true }), /明确确认/);
     assert.deepEqual(demo.snapshot(), before);
@@ -64,10 +68,24 @@ for (const point of ['started', 'reserved', 'written']) {
     assert.equal(recovered.submissionCount, before.submissionCount);
     await assert.rejects(demo.execute(), /Approved unexecuted/); await demo.whenIdle();
     await demo.readback(); await demo.whenIdle();
-    assert.equal(demo.snapshot().task.status, point === 'written' ? 'VERIFIED' : 'FAILED');
+    assert.equal(demo.snapshot().task.status, ['written', 'verify-started'].includes(point) ? 'VERIFIED' : 'FAILED');
     assert.equal(demo.snapshot().submissionCount, before.submissionCount);
   }));
 }
+test('recovery after a saved verification preserves its evidence and terminal result', () => fixture(async ({ file, hostId, open }) => {
+  child(file, hostId, 'verify-saved');
+  const { demo } = open();
+  const before = demo.snapshot();
+  assert.equal(before.task.status, 'VERIFIED');
+  assert.equal(before.recovery.canRecover, true);
+  const recovered = demo.recover({ confirmed: true });
+  assert.equal(recovered.recovery.required, false);
+  assert.deepEqual(recovered.task, before.task);
+  assert.deepEqual(recovered.review, before.review);
+  assert.equal(recovered.submissionCount, 1);
+  await assert.rejects(demo.execute(), /Approved unexecuted/); await demo.whenIdle();
+  assert.deepEqual(demo.snapshot().task, before.task);
+}));
 for (const point of ['shell-taken', 'price-taken', 'interrupted']) {
   test(`a second crash during recovery at ${point} can reconcile without an unlocked write gap`, () => fixture(async ({ file, hostId, open }) => {
     child(file, hostId, 'written'); child(file, hostId, point, true);
