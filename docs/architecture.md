@@ -47,3 +47,5 @@ RPA 抽取已开始：[浏览器恢复逻辑](browser-recovery.md)复用既有�
 新增[隔离浏览器 Runtime](offline-browser.md)及独立开发验收脚本：本机真实 Chromium 合成页面已通过异步 Task 的确认、单次点击、独立回读与关闭检查。该正常开发链路未接入安装版；浏览器中断恢复、CDP、Recorder/Replay 与商业仓依赖仍待继续。
 
 随后补齐本机浏览器响应丢失后的关闭/只读恢复验收，并新增[只读页面 CDP 与证据](page-evidence.md)，采集任务范围绑定的 DOM/视口截图。写动作 DSL、工作流与 Recorder/Replay 以及生产级接入仍未完成；这些开发能力尚未发布到桌面安装版。
+
+开发链路进一步接入[浏览器动作描述与工作流](browser-workflow.md)：固定动作校验、写前授权复核、逐步日志、实际 Chromium 填写/点击/独立回读已验收。Recorder/Replay、完整 Connector SDK 与商业仓接入仍待完成，安装版暂不包含这些新增开发入口。

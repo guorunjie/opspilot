@@ -5,6 +5,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { openOfflineBrowser } from '../src/rpa/offlineBrowser.js';
 import { openPageCDP } from '../src/rpa/pageCDP.js';
+import { compileBrowserWorkflow, runBrowserWorkflow } from '../src/rpa/browserWorkflow.js';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openPersistentTask } from '../src/storage/persistentTask.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
@@ -37,9 +38,20 @@ try {
   assert.equal(await page.evaluate(async () => { try { await fetch('https://example.invalid/no-network'); return true; } catch { return false; } }), false);
   const task = openPersistentTask({ store, scope, create: true });
   const ownership = createTaskOwnership({ store, scope });
+  const writeWorkflow = { version: 1, id: 'price-write', steps: [
+    { id: 'before', type: 'assertText', selector: '#observed', value: '2000' },
+    { id: 'target', type: 'fill', selector: '#price', value: '1800' },
+    { id: 'submit', type: 'click', selector: '#submit' }
+  ] };
+  const readWorkflow = { version: 1, id: 'price-read', steps: [{ id: 'price', type: 'readText', selector: '#observed' }] };
+  const writeDigest = compileBrowserWorkflow(writeWorkflow).digest;
+  const journal = event => {
+    const saved = store.read('workflow-journal');
+    store.save('workflow-journal', [...(saved?.value ?? []), event], saved?.revision ?? 0);
+  };
   const gateway = {
     get: id => ({ riskLevel: id === 'write' ? 'simulated_write' : 'readonly' }),
-    async invoke(id, request) {
+    async invoke(id, request, { signal }) {
       assert.equal(request.storeId, scope.storeId);
       assert.equal(request.planId, 'plan-1');
       assert.deepEqual(request.items, [{ targetId: 'A', before: 2000, value: 1800 }]);
@@ -47,11 +59,19 @@ try {
       assert.equal(saved.approval.planId, request.planId);
       if (id === 'write') {
         assert.equal(saved.status, 'EXECUTING');
-        await page.getByRole('button', { name: '提交模拟价格', exact: true }).click();
+        const result = await runBrowserWorkflow({ runtime, workflow: writeWorkflow, context: request, signal,
+          preconditions: () => runtime.snapshot().status === 'OPEN',
+          authorize: ({ workflow, context }) => workflow.digest === writeDigest && context.planId === 'plan-1'
+            && task.getTask().status === 'EXECUTING' && task.getTask().approval.planId === context.planId,
+          onStep: journal });
+        assert.equal(result.status, 'COMPLETED');
         return { status: 'SUBMITTED' };
       }
       assert.equal(saved.status, 'VERIFYING');
-      const value = Number(await page.locator('#observed').textContent());
+      const result = await runBrowserWorkflow({ runtime, workflow: readWorkflow, context: request, signal,
+        preconditions: () => task.getTask().status === 'VERIFYING', onStep: journal });
+      const raw = result.outputs.find(item => item.stepId === 'price')?.value;
+      const value = typeof raw === 'string' && /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) ? Number(raw) : null;
       return { planId: request.planId, storeId: scope.storeId, connectorId: scope.connectorId, items: [{ targetId: 'A', value }] };
     }
   };
@@ -66,6 +86,7 @@ try {
   assert.equal((await agent.verify()).task.status, 'VERIFIED');
   await assert.rejects(agent.execute({ runId: 'duplicate' }));
   assert.equal(await page.locator('#count').textContent(), '提交次数：1');
+  assert.equal(store.read('workflow-journal').value.length, 8);
   const cdp = await openPageCDP({ context: page.context(), page, simulated: true,
     scope: { namespace: scope.namespace, taskId: scope.id, planId: 'plan-1', runId: 'run-1', connectorId: scope.connectorId, storeId: scope.storeId } });
   const dom = await cdp.readDOM('#observed');
@@ -81,7 +102,7 @@ try {
   assert.equal((await runtime.close()).status, 'CLOSED');
   await assert.rejects(runtime.load('<p>must not reopen</p>'));
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ simulatedBrowserVerified: true, submittedBeforeVerified: true,
-    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, cdpDOMAndScreenshot: true, database: path.join(root, 'tasks.sqlite'),
+    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, cdpDOMAndScreenshot: true, workflowJournalEvents: 8, database: path.join(root, 'tasks.sqlite'),
     scope: 'Actual isolated Chromium + async Task + SQLite; not installed UI or real platform' }, null, 2));
   console.log('Offline browser async journey PASS');
 } finally { if (runtime) await runtime.close(); store.close(); }
