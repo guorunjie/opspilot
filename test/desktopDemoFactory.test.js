@@ -23,10 +23,107 @@ test('existing legacy confirmation is preserved without async initialization', (
     const plan = old.preview(); old.confirm({ previewId: plan.id, confirmed: true });
     const row = store.read('pharmacy-session');
     const opened = createDesktopDemo({ store });
-    assert.deepEqual(opened.snapshot(), old.snapshot());
+    const { legacyUpgrade, legacyArchive, ...rest } = opened.snapshot();
+    assert.deepEqual(rest, old.snapshot());
+    assert.deepEqual(legacyUpgrade, { available: true, revision: row.revision });
+    assert.equal(legacyArchive, null);
     assert.deepEqual(store.read('pharmacy-session'), row);
     assert.equal(store.read('async-demo-active'), null);
     assert.equal(opened.snapshot().submissionCount, 0);
+  } finally { store.close(); }
+});
+
+for (const phase of ['ready', 'approved', 'submitted', 'verified']) test(`explicit upgrade preserves ${phase} records without replaying old approval`, async () => {
+  const store = openStateStore(':memory:', 'desktop');
+  try {
+    const old = createOfflineStoreDemo({ store }); old.diagnose();
+    if (phase !== 'ready') { const p = old.preview(); old.confirm({ previewId: p.id, confirmed: true }); }
+    if (['submitted', 'verified'].includes(phase)) old.execute();
+    if (phase === 'verified') {
+      old.readback();
+      for (const kind of ['inventory', 'campaign']) {
+        old.opportunity({ kind, operation: 'preview' });
+        const planId = old.snapshot().supplemental[kind].task.plan.id;
+        old.opportunity({ kind, operation: 'confirm', planId, confirmed: true });
+        old.opportunity({ kind, operation: 'execute' }); old.opportunity({ kind, operation: 'readback' });
+      }
+    }
+    const row = store.read('pharmacy-session'), snapshot = old.snapshot();
+    const desktop = createDesktopDemo({ store });
+    assert.throws(() => desktop.upgrade({ confirmed: false, expectedRevision: row.revision }), /明确确认/);
+    assert.deepEqual(store.read('pharmacy-session'), row);
+    const upgraded = desktop.upgrade({ confirmed: true, expectedRevision: row.revision });
+    assert.deepEqual(store.read('pharmacy-session').value.legacyArchive, row);
+    assert.deepEqual(upgraded.legacyArchive, snapshot);
+    assert.equal(upgraded.legacyUpgrade, null);
+    assert.equal(upgraded.diagnosis, null); assert.equal(upgraded.submissionCount, 0);
+    assert.equal(upgraded.task.approval, null); assert.equal(upgraded.action, null);
+    await assert.rejects(async () => desktop.confirm({ previewId: snapshot.preview?.id, confirmed: true }));
+    assert.deepEqual(createDesktopDemo({ store }).snapshot(), desktop.snapshot());
+    assert.throws(() => desktop.upgrade({ confirmed: true, expectedRevision: row.revision }), /已变化/);
+    assert.throws(() => old.reset(), /revision conflict/);
+    await desktop.reset({ confirmed: true }); await desktop.whenIdle();
+    assert.deepEqual(desktop.snapshot().legacyArchive, snapshot);
+    const copy = desktop.snapshot().legacyArchive; copy.message = 'tampered';
+    assert.deepEqual(desktop.snapshot().legacyArchive, snapshot);
+  } finally { store.close(); }
+});
+
+test('stale upgrade confirmation cannot archive a changed record', () => {
+  const store = openStateStore(':memory:', 'desktop');
+  try {
+    const old = createOfflineStoreDemo({ store }); const desktop = createDesktopDemo({ store });
+    const expectedRevision = desktop.snapshot().legacyUpgrade.revision;
+    old.diagnose(); const changed = store.read('pharmacy-session');
+    assert.throws(() => desktop.upgrade({ confirmed: true, expectedRevision }), /已变化/);
+    assert.deepEqual(store.read('pharmacy-session'), changed);
+    assert.equal(store.read('async-demo-active'), null);
+  } finally { store.close(); }
+});
+
+test('v1 task-less records remain task-less in the archive, not inferred as verified', () => {
+  const store = openStateStore(':memory:', 'desktop');
+  try {
+    createOfflineStoreDemo({ store }).diagnose();
+    const row = store.read('pharmacy-session'); delete row.value.state.task; row.value.version = 1;
+    store.save('pharmacy-session', row.value, row.revision);
+    const before = store.read('pharmacy-session');
+    const demo = createDesktopDemo({ store });
+    const upgraded = demo.upgrade({ confirmed: true, expectedRevision: before.revision });
+    assert.equal(Object.hasOwn(upgraded.legacyArchive, 'task'), false);
+    assert.equal(upgraded.legacyArchive.review, null);
+    assert.deepEqual(store.read('pharmacy-session').value.legacyArchive, before);
+    assert.equal(upgraded.task.status, 'NOT_CHECKED');
+  } finally { store.close(); }
+});
+
+for (const afterWrite of [false, true]) test(`upgrade acknowledgement loss afterWrite=${afterWrite} preserves complete old data`, () => {
+  const store = openStateStore(':memory:', 'desktop');
+  try {
+    createOfflineStoreDemo({ store }).diagnose(); const row = store.read('pharmacy-session');
+    const faulty = { read: key => store.read(key), save: (key, value, revision) => {
+      if (afterWrite) store.save(key, value, revision);
+      throw new Error('lost acknowledgement');
+    } };
+    const demo = createDesktopDemo({ store: faulty });
+    assert.throws(() => demo.upgrade({ confirmed: true, expectedRevision: row.revision }), /lost acknowledgement/);
+    assert.throws(() => demo.reset(), /保存结果不明/);
+    if (afterWrite) {
+      assert.deepEqual(store.read('pharmacy-session').value.legacyArchive, row);
+      assert.equal(store.read('async-demo-active'), null);
+      const reopened = createDesktopDemo({ store }).snapshot();
+      assert.deepEqual(reopened.legacyArchive.diagnosis, row.value.state.diagnosis);
+      assert.equal(reopened.submissionCount, 0);
+    } else assert.deepEqual(store.read('pharmacy-session'), row);
+  } finally { store.close(); }
+});
+
+test('corrupt embedded archive blocks opening before async initialization', () => {
+  const store = openStateStore(':memory:', 'desktop');
+  try {
+    store.save('pharmacy-session', { version: 4, engine: 'async-demo', legacyArchive: { revision: 1, value: { version: 3 } } }, 0);
+    assert.throws(() => createDesktopDemo({ store }), /存档无效/);
+    assert.equal(store.read('async-demo-active'), null);
   } finally { store.close(); }
 });
 

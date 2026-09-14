@@ -53,6 +53,17 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session, dialog }
     confirm: (input) => demo.confirm(input), execute: (input) => demo.execute(input),
     readback: () => demo.readback(), reset: input => demo.reset(input),
     opportunity: input => demo.opportunity(input),
+    upgrade: async () => {
+      const eligibility = demo.snapshot().legacyUpgrade;
+      if (typeof demo.upgrade !== 'function' || eligibility?.available !== true)
+        throw new Error('当前没有可升级的旧版演示记录。');
+      const answer = await dialog.showMessageBox(window, { type: 'warning',
+        buttons: ['取消', '保留旧记录并开始新版演示'], defaultId: 0, cancelId: 0,
+        title: '确认切换演示版本', message: '旧记录将保留为只读存档，不会继续执行。',
+        detail: '旧任务的状态、确认和回读证据保持原样，可在页面查看。新版使用独立模拟任务，需要重新诊断、预览和确认。未完成的旧任务不会被标记为成功。此操作不影响真实门店。' });
+      if (answer.response !== 1) return demo.snapshot();
+      return demo.upgrade({ confirmed: true, expectedRevision: eligibility.revision });
+    },
     recover: async () => {
       if (typeof demo.recover !== 'function' || demo.snapshot().recovery?.canRecover !== true)
         throw new Error('当前记录无法安全恢复，请保留记录。');

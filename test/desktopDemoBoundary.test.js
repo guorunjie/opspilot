@@ -71,7 +71,7 @@ test('secondary launch exits before readiness, browser session, database or IPC 
   assert.deepEqual(paths, [['userData', path.resolve('output/test-app-data/opspilot-open-core/desktop-runtime')]]);
 });
 
-for (const answer of [0, 1]) test(`desktop recovery requires main-process dialog answer ${answer}, ignoring renderer proof`, async t => {
+for (const command of ['recover', 'upgrade']) for (const answer of [0, 1]) test(`desktop ${command} requires main-process dialog answer ${answer}, ignoring renderer proof`, async t => {
   let handler, resolveDialog, recovered = 0;
   class Window {
     constructor() { this.webContents = { mainFrame: {}, setWindowOpenHandler() {}, on() {} }; }
@@ -87,14 +87,15 @@ for (const answer of [0, 1]) test(`desktop recovery requires main-process dialog
       assert.equal(options.defaultId, 0); assert.equal(options.cancelId, 0);
       return new Promise(resolve => { resolveDialog = resolve; });
     } }
-  }, () => ({ snapshot: () => ({ recovery: { canRecover: true }, recovered }),
-    recover: input => { assert.deepEqual(input, { confirmed: true }); recovered++; return { recovered }; } }));
+  }, () => ({ snapshot: () => ({ recovery: { canRecover: true }, legacyUpgrade: { available: true, revision: 7 }, recovered }),
+    recover: input => { assert.deepEqual(input, { confirmed: true }); recovered++; return { recovered }; },
+    upgrade: input => { assert.deepEqual(input, { confirmed: true, expectedRevision: 7 }); recovered++; return { recovered }; } }));
   t.after(() => fs.rm(result.cache, { recursive: true, force: true }));
   const event = { sender: result.window.webContents, senderFrame: result.window.webContents.mainFrame };
-  const operation = handler(event, 'recover', { confirmed: true, previousExecutorStopped: true, token: 'injected' });
+  const operation = handler(event, command, { confirmed: true, expectedRevision: 999, previousExecutorStopped: true, token: 'injected' });
   await Promise.resolve();
   assert.equal(recovered, 0);
-  assert.throws(() => handler(event, 'recover'), /仍在进行/);
+  assert.throws(() => handler(event, command), /仍在进行/);
   assert.equal(handler(event, 'snapshot').recovered, 0);
   resolveDialog({ response: answer }); await operation;
   assert.equal(recovered, answer);

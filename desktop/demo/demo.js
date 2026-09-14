@@ -135,7 +135,24 @@ function renderSupplemental() {
 }
 function render() {
   text("status", state.message);
-  $('legacy-notice').hidden = !!state.task;
+  $('legacy-notice').hidden = !state.legacyUpgrade?.available;
+  $('upgrade').disabled = busy || !state.legacyUpgrade?.available;
+  $('legacy-archive').hidden = !state.legacyArchive;
+  const archiveContent = $('legacy-archive-content'); archiveContent.replaceChildren();
+  if (state.legacyArchive) {
+    const old = state.legacyArchive;
+    const rows = [['价格', old], ...Object.entries(old.supplemental || {}).map(([kind, record]) => [kind === 'inventory' ? '库存' : '活动', record])];
+    for (const [label, record] of rows) {
+      const p = document.createElement('p');
+      const status = record.task?.status || record.action?.statusLabel || '尚未检查';
+      const review = record.review;
+      const format = value => value == null ? '未知' : label === '价格' ? money(value) : label === '库存' ? `${value} 件` : value === 1 ? '已报名' : '未报名';
+      p.textContent = `${label}旧任务：${status}；提交次数：${record.submissionCount}。${record.task?.approval || record.action ? '旧模拟确认已存档，不授权当前任务。' : '尚无明确确认。'}` + (review
+        ? `回读证据：${review.items.map(item => `${item.productId || item.targetId} 预期 ${format(item.expected)} / 回读 ${format(item.observed)}`).join('；')}。`
+        : '没有已保存的复盘证据，不能据此判断成功。');
+      archiveContent.append(p);
+    }
+  }
   const diagnosis = $("diagnosis");
   renderOpportunities(diagnosis, state, busy);
   const preview = $("preview-content"); preview.replaceChildren();
@@ -193,8 +210,8 @@ async function command(name, input) {
   busy = true; if (state) render();
   try {
     state = await window.opspilotDemo.command(name, input);
-    if (["reset", "preview"].includes(name)) $("consent").checked = false;
-    if (name === 'reset') $("scenario").value = 'normal';
+    if (["reset", "preview", "upgrade"].includes(name)) $("consent").checked = false;
+    if (['reset', 'upgrade'].includes(name)) $("scenario").value = 'normal';
   } catch (error) {
     // A failed async command may already have persisted UNKNOWN. Refresh the
     // read-only snapshot instead of leaving the previous approval on screen.
@@ -204,7 +221,7 @@ async function command(name, input) {
   busy = false; render();
 }
 $("consent").addEventListener("change", render);
-for (const name of ["diagnose", "preview", "readback", "recover"]) $(name).addEventListener("click", () => command(name));
+for (const name of ["diagnose", "preview", "readback", "recover", "upgrade"]) $(name).addEventListener("click", () => command(name));
 $("confirm").addEventListener("click", () => command("confirm", { previewId: state.preview?.id, confirmed: $("consent").checked }));
 $("execute").addEventListener("click", () => command("execute", { scenario: $("scenario").value }));
 $("reset").addEventListener("click", () => { if (window.confirm("复位将清除本次模拟记录，不影响真实门店。继续吗？")) command("reset", { confirmed: true }); });

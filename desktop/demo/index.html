@@ -18,8 +18,10 @@
     <aside id="legacy-notice" class="notice" hidden aria-label="旧版演示记录说明">
       <strong>正在使用旧版演示记录</strong>
       <p>原有价格任务和确认记录仍保留，可继续查看、执行已确认的模拟操作或核对待验证结果；升级不会自动执行。</p>
-      <p>库存与活动的新演示需要新版记录。请先完成并保存需要保留的旧记录，再使用右上角“复位演示”。复位会清除当前模拟记录，确认前可以取消；不会影响真实门店。</p>
+      <p>如需体验新版持久化与恢复能力，可保留当前记录为只读存档，开始独立的新演示。旧确认不会带入新任务；未完成的旧任务仍保留原状态。普通复位不会切换执行版本。</p>
+      <button id="upgrade">保留旧记录并开始新版演示</button>
     </aside>
+    <details id="legacy-archive" hidden><summary>查看旧版演示存档（只读）</summary><p>以下为切换时保留的合成记录，不是当前任务；未完成不代表成功，不提供继续执行入口。</p><div id="legacy-archive-content"></div></details>
     <section><h2>1 · 首次诊断与今日重点</h2><button id="diagnose">运行演示诊断</button><div id="diagnosis">尚未诊断，不能判断门店状态。</div></section>
     <section><h2>2 · 预览建议</h2><button id="preview" disabled>查看跟价预览</button><div id="preview-content">先完成诊断。</div></section>
     <section><h2>3 · 确认与模拟执行</h2>
