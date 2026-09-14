@@ -30,8 +30,10 @@ Demo 使用独立数据、合成 fixtures、任务/调度命名空间、历史�
 
 公开仓库提供 Apache-2.0 授权的早期离线 Demo 源码、SQLite 会话存储、桌面入口、单元测试和三平台 CI 配置。操作说明见[使用指南](getting-started.md)。当前只有一个合成商品的价格操作闭环；库存和成本详情只读，活动机会尚未实现。
 
-Windows 本机完整依赖安装与 32 项测试通过；桌面恢复检查仅覆盖本地模拟。CI 配置存在不代表远端任务已通过，打包命令存在不代表安装、签名或跨平台体验已验收。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
+当前开发源码的 105 项测试及 Windows 源码桌面四场景、提交后退出/重启、回读恢复、复位重复检查通过。已发布的 `v0.1.0-dev.2` 预览安装包另有 Windows/macOS 安装与演示验收；它不包含此后的开发源码改动。新的源码验证不等于新安装包验收，也不等于无需讲解的真实用户测试。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
 
-现有 platformActionProtocol 是抽取的过渡协议，不是已完成的统一任务引擎。其回读证据标志由调用方提供；Demo 负责按固定合成目标逐项比较，并在加载存档时核对一致性。通用 Gateway 必须继续补充独立证据校验、授权绑定和真实恢复契约，不能将此协议单独用于生产写入。统一任务状态、Planner/Memory、Capability Registry/Gateway、通用 RPA/Connector SDK、回滚及商业仓依赖集成均未完成。
+新 Demo 已接入[规范任务状态](task-state.md)、[本地能力入口](local-capabilities.md)、[逐项目标验证](target-verification.md)、[规则价格规划](rule-price-planner.md)和[本地 Task Agent 编排](local-task-agent.md)。规划与只读历史记忆不提供授权；执行和回读由固定能力入口分开处理。任务及模拟目标在同一 SQLite 事务保存。
+
+现有 platformActionProtocol 保留为过渡兼容协议，其证据标志不能单独证明目标成功。新 Task 在 Demo 中是规范状态，旧 v1 存档仍走经过校验的兼容路径，直到用户明确复位。尚未完成：持久化异步 Agent、复合意图规划、通用 RPA/Connector SDK、完整回滚执行、库存/活动执行及商业仓依赖集成。同步 Mock 的原子保存不能替代真实平台的执行前持久化与中断后核对。
 
 阶段顺序：P0 仓库基础 → P1 离线体验 → P2 可靠性 → P3 通用模块抽取 → P4 商业仓依赖集成 → P5 真实验证。每阶段重新核实基线、拆分任务并估算。

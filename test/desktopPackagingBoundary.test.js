@@ -26,6 +26,7 @@ const EXPECTED_FILES = [
   'src/demo/validateDemoState.js',
   'src/verification/verifyTargetState.js',
   'src/task/taskState.js',
+  'src/agent/localTaskAgent.js',
   'src/capability/capabilityRegistry.js',
   'src/connector/mockPriceConnector.js',
   'src/demo/demoPriceCapabilities.js',

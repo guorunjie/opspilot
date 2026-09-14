@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { verifyTargetState } from '../verification/verifyTargetState.js';
-import { createTask, advanceTask } from '../task/taskState.js';
+import { createTask } from '../task/taskState.js';
+import { createLocalTaskAgent } from '../agent/localTaskAgent.js';
 import { createMockPriceConnector } from '../connector/mockPriceConnector.js';
 import { createDemoPriceCapabilities } from './demoPriceCapabilities.js';
 import { diagnoseProducts, createRulePricePlanner } from '../domain/model/pricePlanning.js';
@@ -15,12 +16,23 @@ export function createOfflineStoreDemo({ store } = {}) {
   const prices = () => new Map(connector.snapshot());
   const capabilities = createDemoPriceCapabilities({ getConnector: () => connector, getState: () => state });
   const planner = createRulePricePlanner();
+  const agent = createLocalTaskAgent({
+    getTask: () => state.task,
+    // This is a staged checkpoint inside the Demo command's atomic SQLite save.
+    // Task and synthetic target commit together; never use this hook for live IO.
+    checkpoint: task => { state.task = task; },
+    memory: { read: () => ({ history: state.task.history }) },
+    planner: { proposePlan(input) {
+      const details = planner.proposePlan(input);
+      return { details, items: details.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) };
+    } },
+    gateway: capabilities, writeCapabilityId: 'demo.price.write', readCapabilityId: 'demo.price.read'
+  });
   const priceRequest = () => ({ planId: state.preview.id, storeId: state.storeId,
     items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) });
   let revision = 0;
   let storageFailed = false;
   const snapshot = () => structuredClone(state);
-  const taskEvent = event => { if (state.task) state.task = advanceTask(state.task, event); };
   const move = (status, options = {}) => {
     state.action = transitionPlatformAction(state.action, status, options);
   };
@@ -68,7 +80,7 @@ export function createOfflineStoreDemo({ store } = {}) {
     diagnose() {
       if (state.action) throw new Error("当前动作已有确认，请先完成回读或复位演示。");
       // Rechecking an already previewed unchanged fixture is not a new plan.
-      if (state.task?.status !== 'AWAITING_APPROVAL') taskEvent({ type: 'CHECK', ready: true });
+      if (state.task && state.task.status !== 'AWAITING_APPROVAL') agent.check(true);
       state.diagnosis = {
         ruleVersion: 1,
         simulated: true, checkedAt: new Date().toISOString(), coverage: "仅演示商品与模拟库存，不代表真实门店",
@@ -80,21 +92,21 @@ export function createOfflineStoreDemo({ store } = {}) {
     preview() {
       if (!state.diagnosis) throw new Error("请先运行诊断。");
       if (state.action) throw new Error("已确认的预览不可修改，请完成回读或复位演示。");
-      const proposal = planner.proposePlan({ products: state.products, minimumMargin: 0.2 });
+      const planId = `${state.sessionId}:${randomUUID()}`;
+      const input = { products: state.products, minimumMargin: 0.2 };
+      const proposal = state.task ? agent.propose({ input, planId }).proposal.details : planner.proposePlan(input);
       if (!proposal.items.length) throw new Error('没有满足数据及毛利要求的价格建议，不能创建空操作。');
       state.preview = {
-        id: `${state.sessionId}:${randomUUID()}`, simulated: true, minimumMargin: 0.2,
+        id: planId, simulated: true, minimumMargin: 0.2,
         ...proposal
       };
-      taskEvent({ type: 'PLAN', plan: { id: state.preview.id,
-        items: state.preview.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after })) } });
       return structuredClone(state.preview);
     },
     confirm({ previewId, confirmed } = {}) {
       if (confirmed !== true) throw new Error("必须明确确认模拟预览。");
       if (!state.preview || state.preview.id !== previewId) throw new Error("预览已失效，请重新预览并确认。");
       if (state.action) throw new Error("该预览已经确认，不能重复确认。");
-      taskEvent({ type: 'APPROVE', planId: previewId, confirmed });
+      if (state.task) agent.approve({ planId: previewId, confirmed });
       state.action = createPlatformAction({
         platformId: "offline_demo", storeId: state.storeId, storeName: state.storeName,
         actionType: "update_prices", authorizationLevel: "B",
@@ -107,32 +119,29 @@ export function createOfflineStoreDemo({ store } = {}) {
       if (!state.action) throw new Error("请先预览并确认模拟操作。");
       if (state.action.status !== "pending") throw new Error("本次已提交，禁止重复执行；请查看回读结果或复位演示。");
       if (!["normal", "response_lost", "mismatch", "readback_unavailable"].includes(scenario)) throw new Error("未知演示场景。");
-      taskEvent({ type: 'START', runId: randomUUID() });
       move("running");
       state.executionScenario = scenario;
       state.submissionCount += 1;
-      capabilities.invoke('demo.price.write', priceRequest());
-      taskEvent({ type: 'SUBMIT', uncertain: scenario === 'response_lost' });
+      if (state.task) agent.execute({ runId: randomUUID(), uncertain: scenario === 'response_lost' });
+      else capabilities.invoke('demo.price.write', priceRequest());
       move("awaiting_readback", { reason: scenario === "response_lost" ? "模拟提交响应丢失，结果待核对，禁止重发。" : "模拟提交完成，但尚未回读，不能报成功。", mutationAttempted: true });
       state.message = state.action.reason;
       return snapshot();
     },
     readback() {
       if (state.action?.status !== "awaiting_readback") throw new Error("当前没有等待回读的模拟动作。");
-      taskEvent({ type: 'BEGIN_VERIFY' });
       // A read attempt is not a write retry. Keep unavailable evidence distinct
       // from a mismatching target, and persist it before allowing another check.
       state.readbackAttempts ??= [];
-      const readback = capabilities.invoke('demo.price.read', priceRequest());
+      const checked = state.task ? agent.verify() : null;
+      const readback = checked ? checked.readback : capabilities.invoke('demo.price.read', priceRequest());
       if (readback === null) {
-        taskEvent({ type: 'READBACK', readback: null });
         state.readbackAttempts.push({ status: 'UNKNOWN', code: 'target_unavailable', simulated: true, realPlatformVerified: false });
         state.message = '结果未知（UNKNOWN）：本次模拟回读不可用，没有取得目标状态；禁止重复提交。可再次核对，演示将在下一次回读恢复。';
         return snapshot();
       }
       const scope = { planId: state.preview.id, connectorId: 'offline_demo', storeId: state.storeId };
-      taskEvent({ type: 'READBACK', readback });
-      const verification = verifyTargetState({ ...scope,
+      const verification = checked?.verification ?? verifyTargetState({ ...scope,
         expected: state.preview.items.map(item => ({ targetId: item.productId, value: item.after })),
         readback
       });
