@@ -16,6 +16,14 @@ OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动
 
 ## 快速体验
 
+早期预览版 `0.1.0-dev.2`：
+
+- [Windows x64 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.2/OpsPilot-Core-Demo-0.1.0-dev.2-win-x64.exe)
+- [macOS Apple Silicon 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.2/OpsPilot-Core-Demo-0.1.0-dev.2-mac-arm64.dmg)
+- [发行说明、校验值与已知限制](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.2)
+
+Windows 未签名，macOS 未做 Developer ID 签名或公证。如果系统阻止运行，不要关闭安全检查。当前版本用于离线 Demo 评估，不是生产可用版本，也未完成所有普通用户安装验收。
+
 安装 Node.js 24 或更高版本后：
 
 ```sh
