@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { finished } from 'node:stream/promises';
 import { prepareRelease } from '../scripts/prepare-release.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,7 +41,11 @@ async function fixture(t, opts = {}) {
     : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot-Core-Demo.app/Contents/Resources/app.asar`;
   const archive = path.join(root, 'dist/core', unpacked);
   fs.mkdirSync(path.dirname(archive), { recursive: true });
-  await asar.createPackage(staging, archive);
+  // Pinned ASAR resolves with out.end(), not with the destination's finish.
+  // Reading immediately can observe a partial archive on Windows CI.
+  const archiveStream = await asar.createPackage(staging, archive);
+  await finished(archiveStream);
+  assert.equal(archiveStream.writableFinished, true);
   const name = `OpsPilot-Core-Demo-${version}-${platform === 'win32' ? 'win' : 'mac'}-${arch}.${platform === 'win32' ? 'exe' : 'dmg'}`;
   const installer = path.join(root, 'dist/core', name);
   fs.writeFileSync(installer, opts.installerBytes ?? SYNTHETIC_INSTALLER);
