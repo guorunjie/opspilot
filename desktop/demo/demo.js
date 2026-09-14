@@ -3,6 +3,16 @@ let state;
 let busy = false;
 const $ = (id) => document.getElementById(id);
 const money = (cents) => cents === null ? "未知" : `¥${(cents / 100).toFixed(2)}`;
+function archiveStatusLabel(record) {
+  const status = record.task?.status;
+  if (!status) return record.action?.statusLabel || '尚未检查';
+  const labels = { NOT_CHECKED: '尚未检查', MISSING_DATA: '缺少数据', READY: '已诊断，待预览',
+    AWAITING_APPROVAL: record.task.approval ? '已确认，尚未执行' : '等待明确确认',
+    EXECUTING: '执行中，结果未确认', SUBMITTED: '已提交，等待回读核对', VERIFYING: '正在核对，尚无结论',
+    VERIFIED: '模拟回读一致', PARTIALLY_VERIFIED: '仅部分目标核对一致', FAILED: '未通过核对',
+    ROLLED_BACK: '已核实回滚', UNKNOWN: '结果未知，不能判断成功' };
+  return `${Object.hasOwn(labels, status) ? labels[status] : '未识别状态，请保留记录'}（${status}）`;
+}
 function text(id, value) { $(id).textContent = value; }
 function renderOpportunities(container,state,busy){
   if(!container||typeof container.replaceChildren!=='function')return;
@@ -144,7 +154,7 @@ function render() {
     const rows = [['价格', old], ...Object.entries(old.supplemental || {}).map(([kind, record]) => [kind === 'inventory' ? '库存' : '活动', record])];
     for (const [label, record] of rows) {
       const p = document.createElement('p');
-      const status = record.task?.status || record.action?.statusLabel || '尚未检查';
+      const status = archiveStatusLabel(record);
       const review = record.review;
       const format = value => value == null ? '未知' : label === '价格' ? money(value) : label === '库存' ? `${value} 件` : value === 1 ? '已报名' : '未报名';
       p.textContent = `${label}旧任务：${status}；提交次数：${record.submissionCount}。${record.task?.approval || record.action ? '旧模拟确认已存档，不授权当前任务。' : '尚无明确确认。'}` + (review

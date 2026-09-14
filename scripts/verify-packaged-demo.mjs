@@ -314,6 +314,8 @@ async function legacyUpgradeRun() {
   assert.equal(upgraded.diagnosis, null); assert.equal(upgraded.task.approval, null);
   assert.equal(upgraded.submissionCount, 0); assert.deepEqual(upgraded.supplemental, {});
   await page.getByText('查看旧版演示存档（只读）', { exact: true }).click();
+  for (const label of ['已确认，尚未执行（AWAITING_APPROVAL）', '已提交，等待回读核对（SUBMITTED）', '模拟回读一致（VERIFIED）'])
+    assert.ok((await page.locator('#legacy-archive-content').innerText()).includes(label));
   assert.equal(await page.locator('#legacy-archive button').count(), 0);
   await page.screenshot({ path: path.join(output, 'legacy-upgrade-archive.png') });
   await reopen(upgraded);

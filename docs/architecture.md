@@ -30,22 +30,20 @@ Demo 使用独立数据、合成 fixtures、任务/调度命名空间、历史�
 
 公开仓库提供 Apache-2.0 授权的离线 Demo 源码、SQLite 会话存储、桌面入口、单元测试和三平台 CI 配置。操作说明见[使用指南](getting-started.md)。当前开发源码支持价格调整、库存同步及固定活动报名三条独立模拟闭环；每条使用固定合成样本，不代表通用行业策略或真实经营效果。
 
-当前开发源码的 117 项测试及 Windows 源码桌面三类机会各四种场景、提交后退出/重启、回读恢复、复位重复检查通过。已发布的 `v0.1.0-dev.3` 预览安装包还通过 Windows/macOS 临时 CI 的实际安装、三类机会共 12 组界面场景、重启/复位与卸载验收，见[验证记录](verification.md)。这不等于无需讲解的真实用户测试，也不代表所有本机安装已自动升级。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
+已发布的 `v0.1.0-dev.5` 预览版通过 Windows/macOS 临时 CI 安装、12 组普通界面场景、5 个进程退出恢复点、重启/复位与卸载验收，见[恢复证据与限制](process-exit-recovery.md)。后续源码的[旧存档保留与显式切换](legacy-demo-upgrade.md)也通过双平台候选验收，正在准备独立的 dev.6 版本；不能把候选结果当作该版本发行验收。当前本地单元测试为 234 项通过。这不等于无需讲解的真实用户测试，也不代表所有本机安装已自动升级。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
 
-新 Demo 已接入[规范任务状态](task-state.md)、[本地能力入口](local-capabilities.md)、[逐项目标验证](target-verification.md)、[规则价格规划](rule-price-planner.md)和[本地 Task Agent 编排](local-task-agent.md)。规划与只读历史记忆不提供授权；执行和回读由固定能力入口分开处理。任务及模拟目标在同一 SQLite 事务保存。
+新建 Demo 经 `createDesktopDemo` 接入[异步价格会话](async-price-session.md)、[持久化 Task](persistent-task.md)、[异步 Agent](async-task-agent.md)、[规范任务状态](task-state.md)、[逐项目标验证](target-verification.md)和[规则价格规划](rule-price-planner.md)。规划与只读历史记忆不提供授权。价格 Task 检查点、模拟目标和回读分别持久化；库存/活动仍使用同步 Mock，把单项 Task 与合成目标原子保存，不能据此声称所有 Connector 已异步化。
 
-现有 platformActionProtocol 保留为过渡兼容协议，其证据标志不能单独证明目标成功。新 Task 在 Demo 中是规范状态，旧 v1 存档仍走经过校验的兼容路径，直到用户明确复位。[库存与活动](supplemental-opportunities.md)使用独立 Task，首次使用后存档为 v3，不兼容旧程序降级读取。尚未完成：持久化异步 Agent、复合意图规划、完整经营模型、通用 RPA/Connector SDK、完整回滚执行及商业仓依赖集成。同步 Mock 的原子保存不能替代真实平台的执行前持久化与中断后核对。
+现有 platformActionProtocol 保留为过渡兼容协议，其证据标志不能单独证明目标成功。旧 v1/v2/v3 存档默认保留原执行方式，普通复位不迁移引擎。源码可通过默认取消的主进程确认框，把完整旧行嵌入 v4 标记并初始化独立新会话；旧确认不授权新任务，历史只读。v4 不能由旧程序静默降级读取。
 
 阶段顺序：P0 仓库基础 → P1 离线体验 → P2 可靠性 → P3 通用模块抽取 → P4 商业仓依赖集成 → P5 真实验证。每阶段重新核实基线、拆分任务并估算。
 
-dev.4 开发新增[独立持久化 Task 适配器](persistent-task.md)，为执行前检查点提供 SQLite 原子条件写入、逐事件校验与保存不确定时停止使用的边界。它已与同步 Local Task Agent 组合测试，尚未替换桌面 Demo 会话存储，也不等于完整异步执行实现。
+## 已接入的可靠性边界
 
-dev.4 还新增[异步 Task Agent 编排](async-task-agent.md)：模拟能力可异步执行，超时结果保持 UNKNOWN，原调用未结束前保留 SQLite 所有权、禁止其他合规实例继续操作，迟到响应不能安装成功状态。已有跨连接及真实子进程争用测试；尚未接入桌面、RPA 或宿主级执行者终止核验，不替代上述完整异步 Runtime 的剩余验收。
+持久 Task 使用 SQLite 条件写入、逐事件校验和保存不确定后停用句柄。异步调用超时保持 UNKNOWN，原调用未结束前保留所有权，迟到响应不安装成功状态。桌面单实例锁减少重复启动；同安装 PID 存在性核验只有明确不存在才允许显式恢复。恢复不重新提交，回读独立进行；活进程、外来或未绑定的旧所有权仍阻止操作。这不是子进程/远程操作终止证明，也不是断电耐久性完整验收。
 
-RPA 抽取已开始：[浏览器恢复逻辑](browser-recovery.md)复用既有恢复阶梯并修正未知状态与审计异常的重试边界。仅完成函数级检查，浏览器生命周期、CDP、实际离线页面执行与商业仓依赖接入仍待完成。
+## RPA 开发接口与尚未接入部分
 
-新增[隔离浏览器 Runtime](offline-browser.md)及独立开发验收脚本：本机真实 Chromium 合成页面已通过异步 Task 的确认、单次点击、独立回读与关闭检查。该正常开发链路未接入安装版；浏览器中断恢复、CDP、Recorder/Replay 与商业仓依赖仍待继续。
+[隔离浏览器 Runtime](offline-browser.md)、[页面 CDP 证据](page-evidence.md)、[动作工作流](browser-workflow.md)、[录制/回放](workflow-recorder.md)和[浏览器恢复阶梯](browser-recovery.md)已有独立开发接口与合成场景验证。录制只导入定义，不导入授权；不明确的写入结果不能自动重放。它们尚未形成普通用户可用的桌面 BrowserConnector 纵向链路，不能把开发脚本运行当作安装版功能。
 
-随后补齐本机浏览器响应丢失后的关闭/只读恢复验收，并新增[只读页面 CDP 与证据](page-evidence.md)，采集任务范围绑定的 DOM/视口截图。写动作 DSL、工作流与 Recorder/Replay 以及生产级接入仍未完成；这些开发能力尚未发布到桌面安装版。
-
-开发链路进一步接入[浏览器动作描述与工作流](browser-workflow.md)：固定动作校验、写前授权复核、逐步日志、实际 Chromium 填写/点击/独立回读已验收。Recorder/Replay、完整 Connector SDK 与商业仓接入仍待完成，安装版暂不包含这些新增开发入口。
+仍未完成：普通用户无讲解独立验收、桌面 RPA/Connector SDK 完整链路、复合意图规划、完整经营模型、完整回滚执行及商业仓依赖集成。依赖方向 Enterprise → Core 是目标约束，不能据此宣称商业仓已经完成改造。生产连接与真实门店验收另行进行，不以 Mock 替代。
