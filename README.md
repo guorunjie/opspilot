@@ -149,6 +149,8 @@ OpsPilot 不用于绕过平台的安全、授权或风控机制。
 
 ## 社区与交流
 
+项目资料：[架构与阶段边界](docs/architecture.md) · [贡献指南](CONTRIBUTING.md) · [安全反馈](SECURITY.md) · [社区行为准则](CODE_OF_CONDUCT.md)。
+
 OpsPilot 仍在持续演进。
 
 非常欢迎：
