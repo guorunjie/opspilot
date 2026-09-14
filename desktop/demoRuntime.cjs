@@ -8,9 +8,25 @@ const { randomUUID } = require("node:crypto");
 // config loaders or platform adapters. A fresh cache is not a real store profile.
 async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, createDemo) {
   const dataDir = path.join(app.getPath('appData'), 'opspilot-open-core', 'offline-demo');
-  const cache = fs.mkdtempSync(path.join(os.tmpdir(), "opspilot-offline-demo-"));
   app.setName("OpsPilot 离线演示");
-  app.setPath("userData", cache);
+  // Stable Core-only identity: a random userData path would give each launch
+  // an independent instance lock despite sharing the same business database.
+  const runtimeDir = path.join(app.getPath('appData'), 'opspilot-open-core', 'desktop-runtime');
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  app.setPath("userData", runtimeDir);
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return { secondary: true };
+  }
+  let window = null;
+  app.on('second-instance', () => {
+    // Never interpret another launch's arguments as commands or approval.
+    if (window && !window.isDestroyed()) {
+      if (window.isMinimized()) window.restore();
+      window.show(); window.focus();
+    }
+  });
+  const cache = fs.mkdtempSync(path.join(os.tmpdir(), "opspilot-offline-demo-"));
   app.setPath("sessionData", cache);
   app.commandLine.appendSwitch("disable-background-networking");
   await app.whenReady();
@@ -20,7 +36,7 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
   isolatedSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   isolatedSession.setPermissionCheckHandler(() => false);
   const demo = await createDemo({ dataDir });
-  const window = new BrowserWindow({
+  window = new BrowserWindow({
     width: 1100, height: 800, minWidth: 760, minHeight: 600,
     title: "OpsPilot · 离线演示（合成数据）",
     webPreferences: {

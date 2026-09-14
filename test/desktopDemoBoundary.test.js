@@ -8,6 +8,7 @@ import { createOfflineStoreDemo } from "../src/demo/offlineStoreDemo.js";
 
 test("demo boot isolates paths before readiness and denies external requests and foreign IPC", async (t) => {
   const events = [];
+  const listeners = {}, focusEvents = [];
   let request, handler, permission, popup;
   const isolatedSession = {
     webRequest: { onBeforeRequest: (fn) => { request = fn; } },
@@ -20,9 +21,14 @@ test("demo boot isolates paths before readiness and denies external requests and
       this.webContents = { mainFrame: {}, setWindowOpenHandler: (fn) => { popup = fn; }, on() {} };
     }
     async loadFile(file) { this.file = file; }
+    isDestroyed() { return false; }
+    isMinimized() { return true; }
+    restore() { focusEvents.push('restore'); }
+    show() { focusEvents.push('show'); }
+    focus() { focusEvents.push('focus'); }
   }
   const result = await startOfflineDemo({
-    app: { getPath: name => { assert.equal(name, 'appData'); return path.resolve('output/test-app-data'); }, setName() {}, setPath: (name) => events.push(name), commandLine: { appendSwitch() {} }, whenReady: async () => events.push("ready"), on() {}, quit() {} },
+    app: { getPath: name => { assert.equal(name, 'appData'); return path.resolve('output/test-app-data'); }, setName() {}, setPath: (name) => events.push(name), requestSingleInstanceLock: () => { events.push('lock'); return true; }, commandLine: { appendSwitch() {} }, whenReady: async () => events.push("ready"), on: (name, fn) => { listeners[name] = fn; }, quit() {} },
     BrowserWindow: Window,
     ipcMain: { handle: (_name, fn) => { handler = fn; }, removeHandler() {} },
     session: { fromPartition: (name, options) => { assert.ok(!name.startsWith("persist:")); assert.equal(options.cache, false); return isolatedSession; } }
@@ -31,7 +37,7 @@ test("demo boot isolates paths before readiness and denies external requests and
     return createOfflineStoreDemo();
   });
   t.after(() => fs.rm(result.cache, { recursive: true, force: true }));
-  assert.deepEqual(events, ["userData", "sessionData", "ready"]);
+  assert.deepEqual(events, ["userData", "lock", "sessionData", "ready"]);
   assert.equal(result.window.options.webPreferences.nodeIntegration, false);
   assert.equal(result.window.options.webPreferences.sandbox, true);
   for (const url of ["https://yiyao.meituan.com/", "http://127.0.0.1:4787/", "file:///C:/private.json", "ws://localhost:9333/"]) {
@@ -45,6 +51,24 @@ test("demo boot isolates paths before readiness and denies external requests and
   assert.throws(() => handler(event, "constructor"), /拒绝/);
   assert.throws(() => handler(event, "install-tasks"), /拒绝/);
   assert.equal(handler(event, "snapshot").mode, "offline_demo");
+  const before = handler(event, 'snapshot');
+  listeners['second-instance']({}, ['execute', '--confirmed=true'], '/', { command: 'reset' });
+  assert.deepEqual(focusEvents, ['restore', 'show', 'focus']);
+  assert.deepEqual(handler(event, 'snapshot'), before);
+});
+
+test('secondary launch exits before readiness, browser session, database or IPC creation', async () => {
+  let quits = 0;
+  const paths = [];
+  const result = await startOfflineDemo({ app: {
+    getPath: () => path.resolve('output/test-app-data'), setName() {},
+    setPath: (name, value) => paths.push([name, value]),
+    requestSingleInstanceLock: () => false, quit: () => { quits++; },
+    whenReady: () => assert.fail('Secondary must not reach readiness')
+  } }, () => assert.fail('Secondary must not open data'));
+  assert.deepEqual(result, { secondary: true });
+  assert.equal(quits, 1);
+  assert.deepEqual(paths, [['userData', path.resolve('output/test-app-data/opspilot-open-core/desktop-runtime')]]);
 });
 
 for (const responseFailure of [true, false]) for (const confirmedIdle of [true, false]) test(`desktop response failure=${responseFailure}; idle confirmation=${confirmedIdle}`, async t => {
@@ -57,7 +81,7 @@ for (const responseFailure of [true, false]) for (const confirmedIdle of [true, 
     async loadFile() {}
   }
   const result = await startOfflineDemo({
-    app: { getPath: () => path.resolve('output/test-app-data'), setName() {}, setPath() {},
+    app: { getPath: () => path.resolve('output/test-app-data'), setName() {}, setPath() {}, requestSingleInstanceLock: () => true,
       commandLine: { appendSwitch() {} }, whenReady: async () => {},
       on: (name, fn) => { listeners[name] = fn; }, quit: () => { quits++; } },
     BrowserWindow: Window,
