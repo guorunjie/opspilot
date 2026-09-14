@@ -42,6 +42,8 @@ Tests use independent temporary data; the existing local installation and its re
 
 ## Next required vertical slice
 
+The candidate installer verifier now requires five additional packaged recovery results: START, reservation, target write, BEGIN_VERIFY and saved VERIFIED checkpoint. A test-only driver intercepts successful SQLite updates in the owned Electron process and force-terminates it without changing saved values. No crash flag or probe is packaged with the application. The verifier reopens the actual installed executable, checks cancellation, confirmed recovery, another restart, independent readback, preserved terminal evidence and unchanged submission counts. Dialog responses are controlled by the driver, so this does not establish native dialog interaction. The installer evidence gate requires all five expected outcomes before uninstall success can be reported. Initial Windows source probing passed the three execution boundaries; dual-platform packaged execution of this new check remains pending.
+
 Verify actual packaged Windows and macOS recovery behavior and native confirmation interaction, including interrupted readback. Extend storage-failure coverage. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
 
 Until the remaining checks pass, do not claim full desktop recovery acceptance or upgrade the immutable dev.4 release in place.

@@ -4,6 +4,8 @@ import { _electron } from 'playwright';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { once } from 'node:events';
+import { installRecoveryCrashProbe } from './recoveryCrashProbe.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'CI only, never silently skip');
 assert.equal(process.env.CI, 'true');
@@ -198,6 +200,69 @@ async function supplementalRun(scenario) {
   assert.deepEqual(errors, []);
   return results;
 }
+async function recoveryRun(point) {
+  await open();
+  console.log(await page.locator('body').ariaSnapshot());
+  const initial = await snapshot();
+  assert.equal(initial.diagnosis, null, 'Never discard pre-existing records for recovery checks');
+  assert.equal(initial.action, null);
+  await button('运行演示诊断').click(); await button('查看跟价预览').click();
+  await page.getByRole('checkbox').check(); await button('确认本次预览').click();
+  await installRecoveryCrashProbe(app, point);
+  if (point.startsWith('verify-')) {
+    await button('执行模拟操作').click(); await waitText('#action-state', 'SUBMITTED');
+  }
+  const ownedPid = await app.evaluate(() => process.pid);
+  const exited = once(app.process(), 'exit');
+  let watchdog = false;
+  const timer = setTimeout(() => {
+    watchdog = true;
+    // Only the exact process launched and identified by this test is stopped.
+    try { process.kill(ownedPid, 'SIGKILL'); } catch { /* Exit may already be observed. */ }
+  }, 15000);
+  const clicked = button(point.startsWith('verify-') ? '核对模拟平台结果' : '执行模拟操作').click().catch(() => {});
+  let exit;
+  try { exit = await exited; await clicked; } finally { clearTimeout(timer); }
+  app = null;
+  assert.equal(watchdog, false, 'Crash probe must reach its boundary, not watchdog termination');
+  assert.notEqual(exit[0], 0);
+  await open();
+  const before = await snapshot();
+  assert.equal(before.task.status, point === 'verify-saved' ? 'VERIFIED' : point === 'verify-started' ? 'VERIFYING' : 'EXECUTING');
+  const count = ['started', 'reserved'].includes(point) ? 0 : 1;
+  assert.equal(before.submissionCount, count);
+  assert.equal(before.recovery.canRecover, true);
+  console.log(await page.locator('body').ariaSnapshot());
+  await page.screenshot({ path: path.join(output, `recovery-${point}-ready.png`) });
+  // Controlled answers exercise main-process dialog handling, not native UI
+  // interaction. Native Windows source interaction is a separate acceptance.
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 0 }); });
+  await button('恢复待核实记录（不重新提交）').click();
+  assert.deepEqual(await snapshot(), before);
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1 }); });
+  await button('恢复待核实记录（不重新提交）').click();
+  const recovered = await snapshot();
+  assert.equal(recovered.recovery.required, false);
+  assert.equal(recovered.submissionCount, count);
+  if (point === 'verify-saved') {
+    assert.deepEqual(recovered.task, before.task); assert.deepEqual(recovered.review, before.review);
+  } else {
+    assert.equal(recovered.task.status, 'UNKNOWN'); assert.equal(recovered.review, null);
+  }
+  await reopen(recovered);
+  assert.equal(await button('执行模拟操作').isDisabled(), true);
+  if (point !== 'verify-saved') await button('核对模拟平台结果').click();
+  const status = count ? 'VERIFIED' : 'FAILED';
+  await waitText('#action-state', status);
+  const reviewed = await snapshot();
+  assert.equal(reviewed.task.status, status); assert.equal(reviewed.submissionCount, count);
+  assert.equal(reviewed.task.history.filter(event => event.type === 'START').length, 1);
+  await page.locator('#action-state').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(output, `recovery-${point}-review.png`) });
+  await resetDialog(true); await waitText('#action-state', '尚未确认。'); await close();
+  return { point, status, submissionCount: count, crashExit: exit };
+}
+
 try {
   const scenarios = [];
   for (const scenario of ['normal', 'response_lost', 'mismatch', 'readback_unavailable']) scenarios.push(await scenarioRun(scenario));
@@ -205,7 +270,10 @@ try {
   for (const scenario of ['normal', 'response_lost', 'mismatch', 'readback_unavailable']) supplemental.push(...await supplementalRun(scenario));
   // Repeat both normal flows after the final reset, not just an empty snapshot.
   await supplementalRun('normal');
+  const recovery = [];
+  for (const point of ['started', 'reserved', 'written', 'verify-started', 'verify-saved']) recovery.push(await recoveryRun(point));
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ version: expectedVersion,
-    platform: process.platform, arch: process.arch, scenarios, supplemental, supplementalResetRepeat: true,
+    platform: process.platform, arch: process.arch, scenarios, supplemental, supplementalResetRepeat: true, recovery,
+    recoveryScope: 'Owned packaged process force-terminated after SQLite writes using a test-only injected probe; recovery dialog answers controlled, not native dialog interaction or OS power-loss acceptance.',
     scope: 'Actual packaged app UI in ephemeral CI; not interactive installer, clean end-user machine, Gatekeeper/notarization or real-platform acceptance' }, null, 2) + '\n');
 } finally { await close(); }
