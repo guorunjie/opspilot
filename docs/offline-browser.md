@@ -21,3 +21,13 @@ node scripts/verify-offline-browser.mjs --headed
 输出位于 `output/playwright/offline-browser/`，不会发布模拟截图和数据库。单元测试覆盖配置边界及启动/关闭失败；实际 Chromium 脚本独立运行，不把函数桩检查冒充浏览器验收。
 
 该脚本是开发验收，不是面向普通用户的新版安装程序。目前尚未接入桌面三条 Demo、CDP、Recorder/Replay 或生产 Connector；异常执行中断与真实浏览器关闭的完整联动仍待验收。
+
+## 取消与中断验收
+
+`runtime.run(operation, { signal })` 将可信异步页面操作与取消信号关联。取消前已中止不会调用 operation；运行中取消会关闭该 Runtime 拥有的浏览器。必须等待 operation 自身结束和关闭完成才返回取消结果；不使用提前 race 伪造停止。关闭无法确认时，异常携带 `executionMayContinue: true`，异步 Agent 保留所有权并停止使用该实例。
+
+操作函数必须将所有启动的页面工作纳入返回的 Promise；不能在后台启动操作后提前返回。永不结束的自定义 Promise 即使浏览器已关闭也不会自动当作完成。page 直接调用不自动获得这项信号关联，Connector 应使用 run。
+
+独立运行 `node scripts/verify-browser-interruption.mjs --headed`：脚本在真实隔离 Chromium 点击后，把合成平台结果保存在独立临时 SQLite，然后故意等待不会出现的响应。Agent 超时保存 UNKNOWN、触发浏览器关闭；宿主等待关闭和 `agent.whenIdle()`，再以新浏览器读取合成平台结果，验证一次提交且不会再次点击。输出在 `output/playwright/browser-interruption/`。
+
+本机此链路通过；并非强制终止宿主进程、真实远端请求取消或断电恢复验收。第一次检查发现仅等待 Connector Promise 不足以证明 Agent 已释放所有权；已增加 whenIdle 明确等待收尾，不使用固定休眠替代。

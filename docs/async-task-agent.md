@@ -29,6 +29,8 @@ const agent = createAsyncTaskAgent({ ...task, ownership, planner, gateway,
 
 计时器不是硬实时取消，也无法抢占阻塞 JavaScript 或停止不遵守 AbortSignal 的外部系统。一个永不结束的 Promise 会让实例保持不可操作；应由宿主终止执行环境、确认停止，再重新打开核对，不自动解除锁或盲目重试。
 
+`await agent.whenIdle()` 等待当前命令、原异步调用及所有权释放收尾；它不会取消操作或自动恢复业务，也不是未来命令的锁。释放失败会拒绝。可信 Connector 若不能确认外部执行停止，应抛出带 `executionMayContinue: true` 的错误：Agent 保存 UNKNOWN、保留所有权、拒绝 whenIdle 和继续操作，直到宿主真正核验后按遗留所有权流程处理。没有该标记不构成远端已停止的独立证明，Connector 必须正确实现这一契约。
+
 ## 当前验收范围
 
 针对性测试覆盖异步正常闭环、并发拒绝、写/读超时、迟到结果和拒绝、保存失败、过期规划、恢复门槛、真实写拒绝及生成内容不能授权。所有权测试覆盖独立 SQLite 连接、真实子进程争用、子进程退出后残留锁、条件写入竞争、第二 Agent 在原超时调用结束前不能接管和释放确认丢失。当前尚未接入桌面 UI、RPA 浏览器或真实平台；不应称为完整异步生产 Runtime。原同步 Demo 保持原实现。

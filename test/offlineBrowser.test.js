@@ -50,3 +50,26 @@ test('invalid launcher and timeout fail before launch', async () => {
   await assert.rejects(openOfflineBrowser({ browserType: { ...f.browserType, name: () => 'firefox' } }));
   assert.deepEqual(f.calls, []);
 });
+
+test('cancel closes owned browser and operation must settle before run rejects', async () => {
+  const f = fake(); const runtime = await openOfflineBrowser({ browserType: f.browserType });
+  const controller = new AbortController(); let settle;
+  const pending = runtime.run(() => new Promise(resolve => { settle = resolve; }), { signal: controller.signal });
+  await assert.rejects(runtime.run(async () => {}), /busy/);
+  controller.abort(); await runtime.close();
+  assert.equal(runtime.snapshot().status, 'CLOSED');
+  settle('late success'); await assert.rejects(pending, /abort/i);
+  assert.equal(f.closes, 1);
+});
+test('already aborted signal never starts operation', async () => {
+  const f = fake(); const runtime = await openOfflineBrowser({ browserType: f.browserType }); let calls = 0;
+  await assert.rejects(runtime.run(() => { calls++; }, { signal: AbortSignal.abort() }));
+  assert.equal(calls, 0); await runtime.close();
+});
+test('cancel cleanup failure propagates and status remains UNKNOWN', async () => {
+  const f = fake({ closeFails: true }); const runtime = await openOfflineBrowser({ browserType: f.browserType });
+  const controller = new AbortController(); let settle;
+  const pending = runtime.run(() => new Promise(resolve => { settle = resolve; }), { signal: controller.signal });
+  controller.abort(); settle('not success');
+  await assert.rejects(pending, AggregateError); assert.equal(runtime.snapshot().status, 'UNKNOWN');
+});

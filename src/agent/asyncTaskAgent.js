@@ -21,11 +21,21 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
     return value;
   };
   let busy = false, outstanding = false, poisoned = false, token = null, releaseError = null;
+  let externalUnconfirmed = false;
+  const idleWaiters = new Set();
+  const idleError = () => releaseError || (externalUnconfirmed ? new Error('External execution termination unconfirmed') : null);
+  const notifyIdle = () => {
+    if (busy || outstanding) return;
+    for (const waiter of idleWaiters) idleError() ? waiter.reject(idleError()) : waiter.resolve();
+    idleWaiters.clear();
+  };
   const current = () => structuredClone(assertTask(sync(getTask())));
   const releaseIfIdle = () => {
-    if (busy || outstanding || !token) return;
+    if (busy || outstanding) return;
+    if (!token || externalUnconfirmed) { notifyIdle(); return; }
     try { sync(ownership.release(token)); token = null; }
     catch (error) { poisoned = true; releaseError = error; }
+    notifyIdle();
   };
   const commit = (event, previous = current()) => {
     const next = advanceTask(previous, event);
@@ -45,6 +55,7 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
     outstanding = true;
     const running = Promise.resolve().then(() => work(controller.signal));
     const settled = running.then(value => { outstanding = false; releaseIfIdle(); return value; }, error => {
+      if (error?.executionMayContinue === true) { externalUnconfirmed = true; poisoned = true; }
       outstanding = false; releaseIfIdle(); throw error;
     });
     try {
@@ -108,6 +119,10 @@ export function createAsyncTaskAgent({ getTask, checkpoint, planner, memory = { 
   };
   return Object.freeze({
     snapshot: current,
+    whenIdle: () => {
+      if (!busy && !outstanding) return idleError() ? Promise.reject(idleError()) : Promise.resolve();
+      return new Promise((resolve, reject) => idleWaiters.add({ resolve, reject }));
+    },
     ...Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, async (...args) => {
       if (poisoned) throw new Error('Checkpoint uncertain; reopen and reconcile');
       if (busy || outstanding) throw new Error('An operation is still in progress');

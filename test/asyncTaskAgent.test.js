@@ -125,3 +125,19 @@ test('release acknowledgement failure stops the Agent instead of reporting clean
   assert.equal(f.handle.getTask().status, 'READY');
   await assert.rejects(agent.check(true), /uncertain/);
 });
+
+test('whenIdle waits for late settlement and ownership release', async t => {
+  const gate = deferred(); const f = fixture(t, { write: () => gate.promise, config: { timeoutMs: 30 } });
+  await f.prepare(); await assert.rejects(f.agent.execute({ runId: 'run' }), /timed out/);
+  let idle = false; const drained = f.agent.whenIdle().then(() => { idle = true; });
+  assert.equal(idle, false); gate.resolve({ status: 'SUBMITTED' }); await drained;
+  assert.equal(f.config.ownership.inspect().token, null); assert.equal(f.agent.snapshot().status, 'UNKNOWN');
+});
+test('unconfirmed external termination retains ownership even after rejection', async t => {
+  const f = fixture(t, { write: async () => { throw Object.assign(new Error('close failed'), { executionMayContinue: true }); } });
+  await f.prepare(); await assert.rejects(f.agent.execute({ runId: 'run' }), /close failed/);
+  assert.equal(f.agent.snapshot().status, 'UNKNOWN');
+  assert.ok(f.config.ownership.inspect().token);
+  await assert.rejects(f.agent.whenIdle(), /termination unconfirmed/);
+  await assert.rejects(createAsyncTaskAgent(f.config).verify(), /owned/);
+});
