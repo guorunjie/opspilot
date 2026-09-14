@@ -8,8 +8,42 @@ import { spawnSync } from 'node:child_process';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
 import { createTask } from '../src/task/taskState.js';
+import { randomUUID } from 'node:crypto';
 const scope = { id: 't', namespace: 'test', connectorId: 'mock', storeId: 'store' };
 const task = createTask(scope);
+test('executor identity is atomically bound to a claim and never retrofitted onto legacy claims', () => fixture((a, b) => {
+  const executor = { pid: process.pid, instanceId: randomUUID(), hostId: randomUUID() };
+  const original = structuredClone(executor);
+  const writer = createTaskOwnership({ store: a, scope, executor });
+  executor.pid = 1;
+  const token = writer.acquire(task);
+  const reader = createTaskOwnership({ store: b, scope });
+  assert.equal(reader.inspect().version, 2);
+  assert.deepEqual(reader.inspect().executor, original);
+  const detached = reader.inspect(); detached.executor.pid = 2;
+  assert.deepEqual(reader.inspect().executor, original);
+  assert.throws(() => reader.acquire(task), /owned/);
+  reader.release(token);
+  assert.equal(reader.inspect().executor, null);
+  const legacyToken = reader.acquire(task);
+  assert.equal(writer.inspect().version, 1);
+  assert.equal(writer.inspect().executor, undefined);
+  assert.throws(() => writer.acquire(task), /owned/);
+  reader.release(legacyToken);
+}));
+
+test('invalid executor metadata is rejected without changing a claim', () => fixture(a => {
+  for (const executor of [{ pid: 0, instanceId: randomUUID() }, { pid: process.pid, instanceId: 'invalid' }])
+    assert.throws(() => createTaskOwnership({ store: a, scope, executor }), /executor/);
+  const owner = createTaskOwnership({ store: a, scope, executor: { pid: process.pid, instanceId: randomUUID(), hostId: randomUUID() } });
+  owner.acquire(task);
+  const row = a.read('owner:t'); row.value.executor.pid = -1;
+  a.save('owner:t', row.value, row.revision);
+  const before = a.read('owner:t');
+  assert.throws(() => owner.inspect(), /executor/);
+  assert.throws(() => owner.acquire(task), /executor/);
+  assert.deepEqual(a.read('owner:t'), before);
+}));
 function fixture(run) {
   const root = mkdtempSync(path.join(tmpdir(), 'core-owner-')); const file = path.join(root, 'tasks.sqlite');
   const a = openStateStore(file, 'tasks'), b = openStateStore(file, 'tasks');

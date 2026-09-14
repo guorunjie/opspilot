@@ -7,9 +7,11 @@ startOfflineDemo(electron, async ({ dataDir }) => {
   const { createDesktopDemo } = await import("../src/demo/desktopDemoFactory.js");
   const { openStateStore } = await import('../src/storage/sqliteStateStore.js');
   const { prepareDemoDatabasePath } = await import('../src/storage/demoStoragePath.js');
+  const { loadLocalExecutorIdentity } = await import('../src/storage/localExecutorIdentity.js');
+  const executor = loadLocalExecutorIdentity(electron.app.getPath('userData'));
   const store = openStateStore(prepareDemoDatabasePath(dataDir), 'offline-demo');
   try {
-    const demo = createDesktopDemo({ store });
+    const demo = createDesktopDemo({ store, executor });
     electron.app.once('will-quit', () => store.close());
     return demo;
   } catch (error) { store.close(); throw error; }

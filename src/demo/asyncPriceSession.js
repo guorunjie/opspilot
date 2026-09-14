@@ -10,7 +10,7 @@ import { createTask } from '../task/taskState.js';
 
 // An application-owned async price slice. It does not mutate legacy Demo
 // records or select a production connector from user input.
-export function openAsyncPriceSession({ store, sessionId, products, create = false }) {
+export function openAsyncPriceSession({ store, sessionId, products, create = false, executor = null }) {
   const scope = { id: sessionId, namespace: 'offline_demo', connectorId: 'offline_demo', storeId: 'demo-store' };
   createTask(scope);
   if (typeof create !== 'boolean') throw new TypeError('Explicit creation flag required');
@@ -44,7 +44,7 @@ export function openAsyncPriceSession({ store, sessionId, products, create = fal
   }
   readPlatform();
   const task = openPersistentTask({ store, scope, create });
-  const ownership = createTaskOwnership({ store, scope });
+  const ownership = createTaskOwnership({ store, scope, executor });
   const expectedItems = details.items.map(item => ({ targetId: item.productId, before: item.before, value: item.after }));
   const matches = (request, status) => {
     const saved = task.getTask();

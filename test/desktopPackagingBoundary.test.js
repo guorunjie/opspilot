@@ -31,6 +31,7 @@ const EXPECTED_FILES = [
   'src/capability/asyncCapabilityRegistry.js',
   'src/storage/persistentTask.js',
   'src/storage/taskOwnership.js',
+  'src/storage/localExecutorIdentity.js',
   'src/demo/supplementalOpportunities.js',
   'src/demo/validateDemoState.js',
   'src/verification/verifyTargetState.js',

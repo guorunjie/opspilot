@@ -9,11 +9,12 @@ import { runSupplemental, supplementalCatalog, validateSupplemental } from './su
 
 // Dedicated composition, not a migration of pharmacy-session. Caller supplies
 // an isolated store namespace and keeps its connection open through whenIdle.
-export function createAsyncStoreDemo({ store }) {
+export function createAsyncStoreDemo({ store, executor = null }) {
+  executor = structuredClone(executor);
   const products = createOfflineStoreDemo().snapshot().products;
   const key = 'async-demo-active';
   const shellTask = createTask({ id: 'async-demo-shell', namespace: 'offline_demo', connectorId: 'offline_demo', storeId: 'demo-store' });
-  const shellOwner = createTaskOwnership({ store, scope: shellTask });
+  const shellOwner = createTaskOwnership({ store, scope: shellTask, executor });
   const read = () => {
     const row = store.read(key);
     if (!row || row.value?.version !== 1 || typeof row.value.sessionId !== 'string'
@@ -23,7 +24,7 @@ export function createAsyncStoreDemo({ store }) {
     for (const [kind, record] of Object.entries(row.value.supplemental)) validateSupplemental(record, row.value.sessionId, kind);
     return row;
   };
-  const open = (id, create = false) => openAsyncPriceSession({ store, products, sessionId: id, create });
+  const open = (id, create = false) => openAsyncPriceSession({ store, products, sessionId: id, create, executor });
   const save = (value, revision) => {
     const next = store.save(key, value, revision);
     const saved = read();
@@ -78,7 +79,7 @@ export function createAsyncStoreDemo({ store }) {
     reset({ confirmed } = {}) {
       if (confirmed !== true) throw new Error('必须明确确认复位演示。');
       const row = current(), task = price.snapshot().task;
-      const owner = createTaskOwnership({ store, scope: task });
+      const owner = createTaskOwnership({ store, scope: task, executor });
       const token = owner.acquire(task);
       try {
         const nextId = `demo-${randomUUID()}`, nextPrice = open(nextId, true);

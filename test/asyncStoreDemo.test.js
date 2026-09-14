@@ -3,9 +3,40 @@ import assert from 'node:assert/strict';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
 import { createAsyncStoreDemo } from '../src/demo/asyncStoreDemo.js';
+import { createDesktopDemo } from '../src/demo/desktopDemoFactory.js';
+import { randomUUID } from 'node:crypto';
 const call = async (demo, method, input) => {
   try { return await demo[method](input); } finally { await demo.whenIdle(); }
 };
+
+test('desktop composition binds shell, price and reset claims to trusted executor without exposing it', async () => {
+  const store = openStateStore(':memory:', 'bound-composition');
+  const executor = { pid: process.pid, hostId: randomUUID(), instanceId: randomUUID() };
+  const expected = structuredClone(executor), claims = [];
+  const wrapped = { read: store.read, save(key, value, revision) {
+    if (key.startsWith('owner:') && value.token) {
+      assert.equal(value.version, 2);
+      assert.deepEqual(value.executor, expected);
+      claims.push(key);
+    }
+    return store.save(key, value, revision);
+  } };
+  try {
+    const demo = createDesktopDemo({ store: wrapped, executor });
+    executor.pid = 1;
+    await call(demo, 'diagnose');
+    const plan = await call(demo, 'preview');
+    await call(demo, 'confirm', { previewId: plan.id, confirmed: true });
+    await call(demo, 'execute'); await call(demo, 'readback');
+    const oldId = demo.snapshot().sessionId;
+    assert.ok(claims.includes('owner:async-demo-shell'));
+    assert.ok(claims.includes(`owner:${oldId}`));
+    assert.equal(JSON.stringify(demo.snapshot()).includes(expected.instanceId), false);
+    await call(demo, 'reset', { confirmed: true });
+    await call(demo, 'diagnose');
+    assert.ok(claims.includes(`owner:${demo.snapshot().sessionId}`));
+  } finally { store.close(); }
+});
 
 test('composed async Demo preserves all three flows, reopens and explicitly resets', async () => {
   const store = openStateStore(':memory:', 'composed-demo');
