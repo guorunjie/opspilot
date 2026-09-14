@@ -14,6 +14,11 @@
     <p>体验店长的一次经营决策：看问题、审建议、确认操作、核实结果。</p>
     <p class="notice">本演示不连接真实门店，不读取凭证，不启用调度；所有执行和回读均为模拟。</p>
     <p id="status" role="status" aria-live="polite">正在加载演示……</p>
+    <aside id="legacy-notice" class="notice" hidden aria-label="旧版演示记录说明">
+      <strong>正在使用旧版演示记录</strong>
+      <p>原有价格任务和确认记录仍保留，可继续查看、执行已确认的模拟操作或核对待验证结果；升级不会自动执行。</p>
+      <p>库存与活动的新演示需要新版记录。请先完成并保存需要保留的旧记录，再使用右上角“复位演示”。复位会清除当前模拟记录，确认前可以取消；不会影响真实门店。</p>
+    </aside>
     <section><h2>1 · 首次诊断与今日重点</h2><button id="diagnose">运行演示诊断</button><div id="diagnosis">尚未诊断，不能判断门店状态。</div></section>
     <section><h2>2 · 预览建议</h2><button id="preview" disabled>查看跟价预览</button><div id="preview-content">先完成诊断。</div></section>
     <section><h2>3 · 确认与模拟执行</h2>

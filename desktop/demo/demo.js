@@ -69,7 +69,9 @@ function renderOpportunities(container,state,busy){
         add('预估毛利率',product?margin(product.cost,product.target):'未知');
         add('估算说明','仅按目标价与成本计算，不含其他费用，不等于实际利润；没有外部市场或竞品数据。');
       }
-      add('下一步',def?def.next:'未提供详细依据，请人工核对。');
+      add('下一步',pid === 'inventory' && !state.task
+        ? '先核对实物库存。当前是旧版演示记录；如需体验库存同步，请先处理并保存旧记录，再按页面顶部说明明确复位。'
+        : def?def.next:'未提供详细依据，请人工核对。');
       add('限制',LIMIT);
       nodes.push(det);
     });
@@ -133,6 +135,7 @@ function renderSupplemental() {
 }
 function render() {
   text("status", state.message);
+  $('legacy-notice').hidden = !!state.task;
   const diagnosis = $("diagnosis");
   renderOpportunities(diagnosis, state, busy);
   const preview = $("preview-content"); preview.replaceChildren();
