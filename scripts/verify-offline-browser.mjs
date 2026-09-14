@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { openOfflineBrowser } from '../src/rpa/offlineBrowser.js';
+import { openPageCDP } from '../src/rpa/pageCDP.js';
 import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openPersistentTask } from '../src/storage/persistentTask.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
@@ -65,13 +66,22 @@ try {
   assert.equal((await agent.verify()).task.status, 'VERIFIED');
   await assert.rejects(agent.execute({ runId: 'duplicate' }));
   assert.equal(await page.locator('#count').textContent(), '提交次数：1');
+  const cdp = await openPageCDP({ context: page.context(), page, simulated: true,
+    scope: { namespace: scope.namespace, taskId: scope.id, planId: 'plan-1', runId: 'run-1', connectorId: scope.connectorId, storeId: scope.storeId } });
+  const dom = await cdp.readDOM('#observed');
+  assert.equal(dom.status, 'CAPTURED'); assert.match(dom.artifact.bytes.toString('utf8'), />1800<\/output>/);
+  assert.equal((await cdp.readDOM('#absent')).status, 'MISSING');
+  const capture = await cdp.screenshot();
+  await writeFile(path.join(output, 'cdp-evidence.png'), capture.bytes);
+  await writeFile(path.join(output, 'cdp-evidence.json'), JSON.stringify({ dom: dom.artifact.record, screenshot: capture.record }, null, 2));
+  await cdp.detach(); await assert.rejects(cdp.screenshot());
   await page.screenshot({ path: path.join(output, 'verified.png') });
   assert.equal((await runtime.close()).status, 'CLOSED');
   assert.equal(page.isClosed(), true);
   assert.equal((await runtime.close()).status, 'CLOSED');
   await assert.rejects(runtime.load('<p>must not reopen</p>'));
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ simulatedBrowserVerified: true, submittedBeforeVerified: true,
-    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, database: path.join(root, 'tasks.sqlite'),
+    oneClick: true, closed: true, cookieCount: 0, fetchBlocked: true, cdpDOMAndScreenshot: true, database: path.join(root, 'tasks.sqlite'),
     scope: 'Actual isolated Chromium + async Task + SQLite; not installed UI or real platform' }, null, 2));
   console.log('Offline browser async journey PASS');
 } finally { if (runtime) await runtime.close(); store.close(); }
