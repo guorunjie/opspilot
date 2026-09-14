@@ -70,7 +70,16 @@ jobs:
           path: output/playwright/packaged-ci/
           if-no-files-found: warn
           retention-days: 7
+      - name: Preserve failed Windows installer for diagnosis
+        if: failure() && matrix.label == 'windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: failed-installer-windows
+          path: dist/core/OpsPilot-Core-Demo-*-win-x64.exe
+          if-no-files-found: warn
+          retention-days: 7
       - name: Prepare release assets
+        # Never publish a failed candidate as a release asset.
         run: node scripts/prepare-release.mjs
       - name: Upload platform assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

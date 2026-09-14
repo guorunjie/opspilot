@@ -31,6 +31,7 @@ const mount = path.join(root, 'mounted');
 let mounted = false;
 let installed = false;
 let passed = false;
+let stage = 'install';
 try {
   if (win) run(installer, ['/S', `/D=${destination}`]);
   else {
@@ -46,6 +47,7 @@ try {
     : `${arch === 'arm64' ? 'mac-arm64' : 'mac'}/OpsPilot-Core-Demo.app/Contents/Resources/app.asar`);
   assert.equal(sha(archive), sha(unpacked), 'Installed archive must match audited build archive');
   const executable = within(path.join(destination, win ? 'OpsPilot-Core-Demo.exe' : 'Contents/MacOS/OpsPilot-Core-Demo'));
+  stage = 'packaged-ui';
   run(process.execPath, [path.resolve('scripts/verify-packaged-demo.mjs'), executable], 600000);
   const evidence = JSON.parse(fs.readFileSync(path.join(output, 'result.json'), 'utf8'));
   assert.equal(evidence.version, pkg.version);
@@ -62,6 +64,7 @@ try {
   const byIdentity = (a, b) => `${a.kind}:${a.scenario}`.localeCompare(`${b.kind}:${b.scenario}`);
   assert.deepEqual([...evidence.supplemental].sort(byIdentity), expectedSupplemental.sort(byIdentity));
   const archiveSha256 = sha(archive);
+  stage = 'uninstall';
   if (win) {
     const uninstaller = within(path.join(destination, 'Uninstall OpsPilot-Core-Demo.exe'));
     run(uninstaller, ['/S', '/currentuser']);
@@ -88,6 +91,20 @@ try {
     recoveryBoundaries: evidence.recovery.map(item => item.point),
     scope: 'Ephemeral CI: Windows silent NSIS installation or macOS read-only DMG mount/app copy, actual packaged UI, app removal. Not interactive wizard, end-user quarantine/Gatekeeper, Developer ID/notarization or real-platform acceptance.' }, null, 2) + '\n');
   passed = true;
+} catch (error) {
+  // Retain failure identity even if installation never produced a window.
+  // No environment dump, credentials, customer data or automatic retry.
+  try {
+    fs.writeFileSync(path.join(output, 'failure.json'), JSON.stringify({
+      version: pkg.version, commit: process.env.GITHUB_SHA, platform: process.platform,
+      arch, stage, installed, installer: name,
+      installerSha256: fs.existsSync(installer) ? sha(installer) : null,
+      status: error.status ?? null, signal: error.signal ?? null,
+      code: error.code ?? null, message: error.message,
+      scope: 'Ephemeral CI failure; no success or root-cause claim.'
+    }, null, 2) + '\n');
+  } catch (diagnosticError) { console.error('Failure diagnostic could not be saved:', diagnosticError.message); }
+  throw error;
 } finally {
   // Never erase a failed install or a user's profile to make checks pass.
   if (mounted) run('hdiutil', ['detach', mount]);
