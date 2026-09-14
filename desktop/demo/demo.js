@@ -189,6 +189,9 @@ async function command(name, input) {
     if (["reset", "preview"].includes(name)) $("consent").checked = false;
     if (name === 'reset') $("scenario").value = 'normal';
   } catch (error) {
+    // A failed async command may already have persisted UNKNOWN. Refresh the
+    // read-only snapshot instead of leaving the previous approval on screen.
+    try { state = await window.opspilotDemo.command('snapshot'); } catch { /* Preserve last known view, never invent success. */ }
     busy = false; if (state) render(); text("status", `操作未完成：${error.message}`); return;
   }
   busy = false; render();

@@ -47,23 +47,21 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
     if (pending || quitRequested) throw new Error('操作仍在进行，请等待完成后再继续。');
     // Fence in the trusted main process, not only the renderer's disabled UI.
     // Do not queue stale confirmations or resets behind an outstanding write.
-    let idleConfirmed = false;
-    pending = Promise.resolve().then(() => commands[command](input)).finally(async () => {
+    const operation = Promise.resolve().then(() => commands[command](input));
+    const drain = async () => {
       // An async Agent may report timeout before the underlying work stops.
       // Such adapters must expose whenIdle; never turn a timeout into idle.
       if (typeof demo.whenIdle === 'function') await demo.whenIdle();
-      idleConfirmed = true;
-    });
-    const operation = pending;
-    operation.then(() => {
+    };
+    pending = operation.then(drain, drain);
+    pending.then(() => {
       pending = null;
       if (quitRequested) app.quit();
     }, () => {
       // If external termination is unconfirmed, retain the fence. The user
       // can still inspect a snapshot, but no reset or automatic retry occurs.
-      if (!idleConfirmed) return;
-      pending = null;
-      if (quitRequested) app.quit();
+      // Deliberately keep pending set; do not hide the original command
+      // response while separately waiting for physical termination.
     });
     return operation;
   });

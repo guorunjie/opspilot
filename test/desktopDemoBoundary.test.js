@@ -47,7 +47,7 @@ test("demo boot isolates paths before readiness and denies external requests and
   assert.equal(handler(event, "snapshot").mode, "offline_demo");
 });
 
-for (const confirmedIdle of [true, false]) test(`desktop fences reset and quit; idle confirmation=${confirmedIdle}`, async t => {
+for (const responseFailure of [true, false]) for (const confirmedIdle of [true, false]) test(`desktop response failure=${responseFailure}; idle confirmation=${confirmedIdle}`, async t => {
   let handler, completePreview, markIdle, rejectIdle;
   const listeners = {};
   let previewed = false, resets = 0, quits = 0;
@@ -65,11 +65,15 @@ for (const confirmedIdle of [true, false]) test(`desktop fences reset and quit; 
     session: { fromPartition: () => ({ webRequest: { onBeforeRequest() {} },
       setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) }
   }, () => ({ snapshot: () => ({ previewed }),
-    preview: () => new Promise(resolve => { completePreview = () => { previewed = true; resolve(); }; }),
+    preview: () => new Promise((resolve, reject) => { completePreview = () => {
+      previewed = true;
+      if (responseFailure) reject(new Error('timed out; outcome unknown')); else resolve();
+    }; }),
     reset: () => { resets++; }, whenIdle: () => idle }));
   t.after(() => fs.rm(result.cache, { recursive: true, force: true }));
   const event = { sender: result.window.webContents, senderFrame: result.window.webContents.mainFrame };
   const operation = handler(event, 'preview');
+  const response = responseFailure ? assert.rejects(operation, /timed out/) : operation;
   await Promise.resolve();
   assert.deepEqual(handler(event, 'snapshot'), { previewed: false });
   assert.throws(() => handler(event, 'reset'), /仍在进行/);
@@ -77,14 +81,16 @@ for (const confirmedIdle of [true, false]) test(`desktop fences reset and quit; 
   listeners['before-quit']({ preventDefault: () => { prevented = true; } });
   assert.equal(prevented, true); assert.equal(quits, 0);
   completePreview(); await Promise.resolve(); await Promise.resolve();
+  // Response (including timeout) must arrive before the external idle promise.
+  const received = await response;
+  if (!responseFailure) assert.deepEqual(received, { previewed: true });
   assert.throws(() => handler(event, 'reset'), /仍在进行/);
   assert.equal(quits, 0);
   if (confirmedIdle) {
-    markIdle(); assert.deepEqual(await operation, { previewed: true });
+    markIdle(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(quits, 1);
   } else {
-    const rejected = assert.rejects(operation, /termination unknown/);
-    rejectIdle(new Error('termination unknown')); await rejected;
+    rejectIdle(new Error('termination unknown')); await new Promise(resolve => setImmediate(resolve));
     assert.throws(() => handler(event, 'reset'), /仍在进行/);
     assert.deepEqual(handler(event, 'snapshot'), { previewed: true });
     assert.equal(quits, 0);
