@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { verifyTargetState } from '../verification/verifyTargetState.js';
 import { validateDemoState } from './validateDemoState.js';
 import { createPlatformAction, transitionPlatformAction } from "../domain/model/platformActionProtocol.js";
 
@@ -110,8 +111,16 @@ export function createOfflineStoreDemo({ store } = {}) {
         state.message = '结果未知（UNKNOWN）：本次模拟回读不可用，没有取得目标状态；禁止重复提交。可再次核对，演示将在下一次回读恢复。';
         return snapshot();
       }
-      const items = state.preview.items.map((item) => ({ productId: item.productId, expected: item.after, observed: platformPrices.get(item.productId), matched: platformPrices.get(item.productId) === item.after }));
-      const matched = items.every((item) => item.matched);
+      const scope = { planId: state.preview.id, connectorId: 'offline_demo', storeId: state.storeId };
+      const verification = verifyTargetState({ ...scope,
+        expected: state.preview.items.map(item => ({ targetId: item.productId, value: item.after })),
+        readback: { ...scope, items: state.preview.items.map(item => ({ targetId: item.productId, value: platformPrices.get(item.productId) })) }
+      });
+      // Preserve the v1 checkpoint contract while sharing the actual comparator.
+      // The mock always has a complete integer price map; unavailable reads are
+      // handled above without creating a terminal result or resubmitting.
+      const items = verification.items.map(item => ({ productId: item.targetId, expected: item.expected, observed: item.observed, matched: item.status === 'VERIFIED' }));
+      const matched = verification.exact;
       const evidence = { exact: matched, simulated: true, realPlatformVerified: false, items };
       move(matched ? "readback_consistent" : "readback_inconsistent", { evidence });
       if (matched) move("succeeded", { evidence });

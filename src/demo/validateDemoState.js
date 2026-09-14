@@ -1,5 +1,6 @@
 import { isDeepStrictEqual as equal } from 'node:util';
 import { assertPlatformAction } from '../domain/model/platformActionProtocol.js';
+import { verifyTargetState } from '../verification/verifyTargetState.js';
 
 // Validate this version's synthetic checkpoint, not arbitrary production state.
 export function validateDemoState(state, initialProducts, prices) {
@@ -55,8 +56,13 @@ export function validateDemoState(state, initialProducts, prices) {
     require(state.review === null && action.evidence === null && action.terminal === false);
     return;
   }
-  const items = state.preview.items.map(p => ({ productId: p.productId, expected: p.after,
-    observed: prices.get(p.productId), matched: prices.get(p.productId) === p.after }));
+  const scope = { planId: state.preview.id, connectorId: 'offline_demo', storeId: state.storeId };
+  const verification = verifyTargetState({ ...scope,
+    expected: state.preview.items.map(p => ({ targetId: p.productId, value: p.after })),
+    readback: { ...scope, items: state.preview.items.map(p => ({ targetId: p.productId, value: prices.get(p.productId) })) }
+  });
+  const items = verification.items.map(p => ({ productId: p.targetId, expected: p.expected,
+    observed: p.observed, matched: p.status === 'VERIFIED' }));
   const matchedCount = items.filter(p => p.matched).length;
   require(equal(state.review, { simulated: true, realPlatformVerified: false, items, matchedCount, actualProfitImpact: null }));
   require(equal(action.evidence, { exact: matchedCount === items.length, simulated: true, realPlatformVerified: false, items }));
