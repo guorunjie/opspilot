@@ -1,5 +1,18 @@
 # 早期 Demo 验证记录
 
+## 已发布预览版：0.1.0-dev.3
+
+[发行页](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.3)固定到提交 `89280a8687fa335aca2846f7dc8a585fd76c391a`。
+[标签发行流程](https://github.com/guorunjie/opspilot/actions/runs/34889579598)通过 117 项测试、Windows x64/macOS arm64 构建、实际安装/应用复制、安装后档案核对、价格/库存/活动各四组窗口场景、重启、复位重跑和卸载/移除。
+审核标签、提交、安装证据、资产哈希及 provenance 一致后公开为 prerelease，不是完整 Foundation 或生产验收。
+
+- Windows 安装包 SHA-256：`044ce20ef2c7693849cbe8478030a39b15b972f0dab94b29028f3ab80dbfc05a`
+- macOS arm64 安装包 SHA-256：`833c81667b89f3c31443db7786d55aef6acd38a1823c45f1df1718ad2b9f8602`
+
+此前一次 Windows 单元 CI 暴露了测试夹具读取未写完 ASAR 的竞态；已改为等待输出流完成，没有放宽源码字节校验。修复后的[三平台 CI](https://github.com/guorunjie/opspilot/actions/runs/34889420217)和上述标签流程均通过。
+
+安装测试运行于临时 CI，不代表用户本机已自动升级，也不能替代交互安装向导、下载后的系统安全提示或非开发用户独立体验。Windows 未签名，macOS 未做 Developer ID 签名或公证；不要关闭系统安全检查。首次使用库存/活动会生成 v3 存档，旧程序不能读取，升级和降级须保留原记录。
+
 ## 已发布预览版：0.1.0-dev.2
 
 [发行页](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.2)对应标签提交 `47e495f9494a9ec1047984c02b6b309b30cc2e6e`，不是完整 Foundation 完成声明。
@@ -33,7 +46,7 @@ Windows 在临时 CI 中静默安装 NSIS；macOS 只读挂载 DMG 并复制应�
 
 - 普通用户交互安装向导、全新终端下载后的系统安全提示及非开发用户独立体验；CI 运行不能代替这些检查。
 - 可信发行者代码签名、公证，Intel macOS 安装发行与真实终端体验。
-- 通用 Agent、Capability、RPA、三类经营机会的完整实现及商业仓依赖集成。
+- 通用异步 Agent/Capability、RPA、完整经营模型及商业仓依赖集成；固定合成机会闭环已在 dev.3 演示，不等于这些通用能力完成。
 - 真实平台、真实经营效果和生产级恢复：**WAITING_FOR_REAL_VALIDATION**。
 
 首次启动可能下载 Electron。安装完成或单元测试通过都不能替代桌面启动检查；模拟回读通过也不能替代真实平台验证。

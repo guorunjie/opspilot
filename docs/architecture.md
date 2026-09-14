@@ -30,7 +30,7 @@ Demo 使用独立数据、合成 fixtures、任务/调度命名空间、历史�
 
 公开仓库提供 Apache-2.0 授权的离线 Demo 源码、SQLite 会话存储、桌面入口、单元测试和三平台 CI 配置。操作说明见[使用指南](getting-started.md)。当前开发源码支持价格调整、库存同步及固定活动报名三条独立模拟闭环；每条使用固定合成样本，不代表通用行业策略或真实经营效果。
 
-当前开发源码的 117 项测试及 Windows 源码桌面三类机会各四种场景、提交后退出/重启、回读恢复、复位重复检查通过。已发布的 `v0.1.0-dev.2` 预览安装包另有 Windows/macOS 价格演示验收；它不包含此后的开发源码改动。新的源码验证不等于新安装包验收，也不等于无需讲解的真实用户测试。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
+当前开发源码的 117 项测试及 Windows 源码桌面三类机会各四种场景、提交后退出/重启、回读恢复、复位重复检查通过。已发布的 `v0.1.0-dev.3` 预览安装包还通过 Windows/macOS 临时 CI 的实际安装、三类机会共 12 组界面场景、重启/复位与卸载验收，见[验证记录](verification.md)。这不等于无需讲解的真实用户测试，也不代表所有本机安装已自动升级。真实店铺验证标记为 **WAITING_FOR_REAL_VALIDATION**。
 
 新 Demo 已接入[规范任务状态](task-state.md)、[本地能力入口](local-capabilities.md)、[逐项目标验证](target-verification.md)、[规则价格规划](rule-price-planner.md)和[本地 Task Agent 编排](local-task-agent.md)。规划与只读历史记忆不提供授权；执行和回读由固定能力入口分开处理。任务及模拟目标在同一 SQLite 事务保存。
 

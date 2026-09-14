@@ -12,15 +12,15 @@ OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动
 
 目前，**医药即时零售 O2O** 是 OpsPilot 的第一个真实生产落地方向，但底层架构尽量保持通用，可继续扩展到零售、电商、本地生活和其他经营自动化场景。
 
-> 发布状态：本仓库处于 OpsPilot 2.0 Foundation 建设阶段。当前开发源码支持合成价格调整、库存同步、固定活动报名三条独立模拟闭环，各自需要预览、确认、执行与回读。下方 `dev.2` 安装包仍仅包含早期价格演示，不含最新源码能力。通用异步 Agent/RPA、商业仓接入和真实平台验收仍未完成；以下介绍包含计划范围。Open Core 采用 Apache-2.0。
+> 发布状态：本仓库处于 OpsPilot 2.0 Foundation 建设阶段。`dev.3` 预览版支持合成价格调整、库存同步、固定活动报名三条独立模拟闭环，各自需要预览、确认、执行与回读。通用异步 Agent/RPA、商业仓接入和真实平台验收仍未完成；以下介绍包含计划范围。Open Core 采用 Apache-2.0。
 
 ## 快速体验
 
-早期预览版 `0.1.0-dev.2`：
+早期预览版 `0.1.0-dev.3`：
 
-- [Windows x64 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.2/OpsPilot-Core-Demo-0.1.0-dev.2-win-x64.exe)
-- [macOS Apple Silicon 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.2/OpsPilot-Core-Demo-0.1.0-dev.2-mac-arm64.dmg)
-- [发行说明、校验值与已知限制](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.2)
+- [Windows x64 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.3/OpsPilot-Core-Demo-0.1.0-dev.3-win-x64.exe)
+- [macOS Apple Silicon 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.3/OpsPilot-Core-Demo-0.1.0-dev.3-mac-arm64.dmg)
+- [发行说明、校验值与已知限制](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.3)
 
 Windows 未签名，macOS 未做 Developer ID 签名或公证。如果系统阻止运行，不要关闭安全检查。当前版本用于离线 Demo 评估，不是生产可用版本，也未完成所有普通用户安装验收。
 
