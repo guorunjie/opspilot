@@ -2,7 +2,7 @@
 
 ## Current scope
 
-These are development changes after the immutable `v0.1.0-dev.4` release, not an installed-version upgrade. The source desktop now has a scoped recovery path; packaged and macOS recovery acceptance remain pending. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
+These are development changes after the immutable `v0.1.0-dev.4` release, not an installed-version upgrade. The desktop now has a scoped recovery path, tested in Windows x64 and macOS arm64 installed candidates. Native macOS confirmation interaction and unassisted user acceptance remain pending. Version `0.1.0-dev.5` is being prepared; its own versioned assets still require verification. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
 
 The desktop records an installation identity and the owning process for new asynchronous Demo claims. It explains unresolved ownership and disables mutation controls. When every held claim belongs to a confirmed absent process on this installation, it offers **恢复待核实记录（不重新提交）**. This is not an automatic or generic unlock.
 
@@ -46,12 +46,19 @@ Separately, the Windows source desktop's real native recovery dialog was visuall
 
 Tests use independent temporary data; the existing local installation and its reviews were not upgraded or reset. These results do not establish OS power-loss durability, non-developer usability or real-platform execution.
 
-## Next required vertical slice
+## Packaged recovery evidence and remaining work
 
 Run [34906784022](https://github.com/guorunjie/opspilot/actions/runs/34906784022), commit `c661144e419c22cf54089e4c5c075305a74e4cf8`, completed with a mixed result. macOS arm64 installed-app evidence passed all five recovery boundaries: START/reservation yielded FAILED with zero submissions, target-written/BEGIN_VERIFY/saved-VERIFIED yielded VERIFIED with one submission. The downloaded result/install records and target-written review screenshot were inspected; uninstall also passed. Dialog answers were controlled, not native macOS interaction. Windows built its installer but that installer exited with status 3221225477 before application launch; no Windows packaged recovery conclusion can be drawn. Root cause remains unknown. The next candidate now retains a structured failure record and the failed Windows installer artifact for diagnosis, without automatic retry or release publication.
 
-The candidate installer verifier now requires five additional packaged recovery results: START, reservation, target write, BEGIN_VERIFY and saved VERIFIED checkpoint. A test-only driver intercepts successful SQLite updates in the owned Electron process and force-terminates it without changing saved values. No crash flag or probe is packaged with the application. The verifier reopens the actual installed executable, checks cancellation, confirmed recovery, another restart, independent readback, preserved terminal evidence and unchanged submission counts. Dialog responses are controlled by the driver, so this does not establish native dialog interaction. The installer evidence gate requires all five expected outcomes before uninstall success can be reported. Initial Windows source probing passed the three execution boundaries; dual-platform packaged execution of this new check remains pending.
+The candidate installer verifier requires five additional packaged recovery results: START, reservation, target write, BEGIN_VERIFY and saved VERIFIED checkpoint. A test-only driver intercepts successful SQLite updates in the owned Electron process and force-terminates it without changing saved values. No crash flag or probe is packaged with the application. The verifier reopens the actual installed executable, checks cancellation, confirmed recovery, another restart, independent readback, preserved terminal evidence and unchanged submission counts. Dialog responses are controlled by the driver, so this does not establish native dialog interaction. The installer evidence gate requires all five expected outcomes before uninstall success can be reported.
 
-Verify actual packaged Windows and macOS recovery behavior and native confirmation interaction, including interrupted readback. Extend storage-failure coverage. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
+Run [34907223075](https://github.com/guorunjie/opspilot/actions/runs/34907223075), commit `a6afe3edf7b7319363ddacc33a698a14f5f032b4`, subsequently passed on both Windows x64 and macOS arm64. Each installed candidate passed 12 ordinary scenarios, all five recovery boundaries, reset/repeat and uninstall. START/reservation ended FAILED/count 0; target-written/BEGIN_VERIFY/saved-VERIFIED ended VERIFIED/count 1. Both downloaded installer binaries were independently hashed and matched the same-run provenance and install evidence:
+
+- Windows installer SHA-256: `d0a276d1a3f8a52e9d1fcfb8b69283cadb88cae8689c00e1dbcd1f6158a210c8`.
+- macOS installer SHA-256: `46d0ff10d815b6da95b53bb8148ae66ac384f86fc0f5816ab7b7e5d01f3a42be`.
+
+These are manual development candidates still labeled dev.4, not the immutable published dev.4 assets and not dev.5 release evidence. The subsequent Windows success is non-reproduction of the earlier installer crash, not proof of a root-cause fix. Keep that anomaly open and retain failure diagnostics in future builds.
+
+Verify versioned release assets and native packaged confirmation interaction, especially on macOS. Extend storage-failure coverage. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
 
 Until the remaining checks pass, do not claim full desktop recovery acceptance or upgrade the immutable dev.4 release in place.
