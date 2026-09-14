@@ -11,6 +11,7 @@ import { openStateStore } from '../src/storage/sqliteStateStore.js';
 import { openPersistentTask } from '../src/storage/persistentTask.js';
 import { createTaskOwnership } from '../src/storage/taskOwnership.js';
 import { createAsyncTaskAgent } from '../src/agent/asyncTaskAgent.js';
+import { AsyncCapabilityRegistry } from '../src/capability/asyncCapabilityRegistry.js';
 
 const root = await mkdtemp(path.join(tmpdir(), 'opspilot-browser-acceptance-'));
 const output = path.resolve('output/playwright/offline-browser');
@@ -86,9 +87,7 @@ try {
     const saved = store.read('workflow-journal');
     store.save('workflow-journal', [...(saved?.value ?? []), event], saved?.revision ?? 0);
   };
-  const gateway = {
-    get: id => ({ riskLevel: id === 'write' ? 'simulated_write' : 'readonly' }),
-    async invoke(id, request, { signal }) {
+  const invokeConnector = async (id, request, { signal }) => {
       assert.equal(request.storeId, scope.storeId);
       assert.equal(request.planId, 'plan-1');
       assert.deepEqual(request.items, [{ targetId: 'A', before: 2000, value: 1800 }]);
@@ -110,8 +109,23 @@ try {
       const raw = result.outputs.find(item => item.stepId === 'price')?.value;
       const value = typeof raw === 'string' && /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) ? Number(raw) : null;
       return { planId: request.planId, storeId: scope.storeId, connectorId: scope.connectorId, items: [{ targetId: 'A', value }] };
-    }
   };
+  const currentScope = (id, request) => {
+    const saved = task.getTask();
+    return saved.namespace === scope.namespace && saved.connectorId === scope.connectorId
+      && saved.storeId === request.storeId && saved.plan?.id === request.planId
+      && saved.run?.idempotencyKey === request.idempotencyKey
+      && saved.approval?.planId === request.planId
+      && JSON.stringify(saved.plan.items) === JSON.stringify(request.items)
+      && saved.status === (id === 'write' ? 'EXECUTING' : 'VERIFYING');
+  };
+  const gateway = new AsyncCapabilityRegistry(['write', 'read'].map(id => ({
+    id, riskLevel: id === 'write' ? 'simulated_write' : 'readonly',
+    preconditions: request => runtime.snapshot().status === 'OPEN' && currentScope(id, request),
+    authorize: request => currentScope(id, request),
+    validateCurrent: request => currentScope(id, request),
+    run: (request, context) => invokeConnector(id, request, context)
+  })));
   const agent = createAsyncTaskAgent({ ...task, ownership, gateway, writeCapabilityId: 'write', readCapabilityId: 'read',
     planner: { proposePlan: async () => ({ items: [{ targetId: 'A', before: 2000, value: 1800 }] }) } });
   await agent.check(true); await agent.propose({ input: {}, planId: 'plan-1' });
