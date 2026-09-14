@@ -200,5 +200,5 @@ $("consent").addEventListener("change", render);
 for (const name of ["diagnose", "preview", "readback"]) $(name).addEventListener("click", () => command(name));
 $("confirm").addEventListener("click", () => command("confirm", { previewId: state.preview?.id, confirmed: $("consent").checked }));
 $("execute").addEventListener("click", () => command("execute", { scenario: $("scenario").value }));
-$("reset").addEventListener("click", () => { if (window.confirm("复位将清除本次模拟记录，不影响真实门店。继续吗？")) command("reset"); });
+$("reset").addEventListener("click", () => { if (window.confirm("复位将清除本次模拟记录，不影响真实门店。继续吗？")) command("reset", { confirmed: true }); });
 command("snapshot");

@@ -35,7 +35,7 @@ async function startOfflineDemo({ app, BrowserWindow, ipcMain, session }, create
     snapshot: () => demo.snapshot(), diagnose: () => demo.diagnose(),
     preview: async () => { await demo.preview(); return demo.snapshot(); },
     confirm: (input) => demo.confirm(input), execute: (input) => demo.execute(input),
-    readback: () => demo.readback(), reset: () => demo.reset(),
+    readback: () => demo.readback(), reset: input => demo.reset(input),
     opportunity: input => demo.opportunity(input)
   };
   let pending = null, quitRequested = false;
