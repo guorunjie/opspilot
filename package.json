@@ -1,6 +1,6 @@
 {
   "name": "opspilot",
-  "version": "0.1.0-dev.6",
+  "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -10,8 +10,16 @@
     "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js",
     "./host-execution-binding": "./src/connector/hostExecutionBinding.js"
   },
-  "files": ["src/", "desktop/", "electron-builder.json", "LICENSE", "README.md"],
-  "engines": { "node": ">=24" },
+  "files": [
+    "src/",
+    "desktop/",
+    "electron-builder.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test",
     "start": "electron desktop/demo.cjs",
@@ -19,5 +27,10 @@
     "desktop:dist:win": "electron-builder --config electron-builder.json --win nsis --x64 --publish never",
     "desktop:dist:mac": "electron-builder --config electron-builder.json --mac dmg --publish never"
   },
-  "devDependencies": { "electron": "42.7.0", "electron-builder": "26.8.1", "playwright": "1.59.1" }
+  "devDependencies": {
+    "electron": "42.7.0",
+    "electron-builder": "26.8.1",
+    "playwright": "1.59.1"
+  }
 }
+
