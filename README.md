@@ -10,6 +10,23 @@ OpsPilot 的目标，是把经营数据中的问题、机会和建议，真正�
 
 OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动化能力、审批与验证机制、离线演示环境，以及可扩展的 Connector 连接器体系。
 
+## Open Core 候选版
+
+当前候选版以源码和 GitHub 自动生成的源码压缩包发布，采用 [Apache License 2.0](LICENSE)，不包含签名的生产二进制。要求 Node.js 24 或更高版本：
+
+```sh
+npm ci
+npm test
+```
+
+离线 Demo 使用独立的本地数据和模拟连接器，不访问真实平台、账号、网络端点或凭证。它不能替代生产平台验收。
+
+对美团、淘宝闪购、京东医药 O2O 等真实平台执行，需要用户另行提供并授权的私有 Connector 与宿主。生产 Recipe、Selector、凭证、客户数据和官方 Connector 不在本仓库中，Open Core 也不反向依赖商业仓。当前公开版本不宣称已具备这些平台的生产接入能力。
+
+真实写入默认关闭；即使由私有宿主启用，也必须经过明确确认、执行锁和平台逐项回读。`host-execution-binding` 只用于关联宿主、执行、平台、门店和确认指纹，不代表授权或 VERIFIED。缺少身份、确认指纹或逐项回读证据时，结果必须保持 `UNKNOWN`。
+
+源码下载：[GitHub Releases](https://github.com/guorunjie/opspilot/releases)。当前发布不提供签名生产安装包；请以 Release 页面中的实际资产和校验说明为准。
+
 目前，**医药即时零售 O2O** 是 OpsPilot 的第一个真实生产落地方向，但底层架构尽量保持通用，可继续扩展到零售、电商、本地生活和其他经营自动化场景。
 
 > 发布状态：本仓库处于 OpsPilot 2.0 Foundation 建设阶段。`dev.6` 预览版支持合成价格调整、库存同步、固定活动报名三条独立模拟闭环，各自需要预览、确认、执行与回读；提供单实例保护和明确确认后的本机模拟任务恢复（不重新提交）。新增明确确认后保留旧记录并开始独立新版演示，旧授权不会继承。新建演示使用持久异步价格任务；旧记录不会自动迁移。完整恢复验收、桌面浏览器 Connector、商业仓接入和真实平台验收仍未完成；以下介绍包含计划范围。Open Core 采用 Apache-2.0。
@@ -217,3 +234,4 @@ OpsPilot 仍在持续演进。
 欢迎交流 OpsPilot、AI Agent、RPA、零售 O2O、连接器开发，以及真实业务自动化实践。
 
 也欢迎通过 Issue 和 Pull Request 参与项目建设。
+
