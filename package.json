@@ -7,7 +7,8 @@
   "description": "Local-first operations agent — isolated offline foundation",
   "main": "desktop/demo.cjs",
   "exports": {
-    "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js"
+    "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js",
+    "./host-execution-binding": "./src/connector/hostExecutionBinding.js"
   },
   "files": ["src/", "desktop/", "electron-builder.json", "LICENSE", "README.md"],
   "engines": { "node": ">=24" },
