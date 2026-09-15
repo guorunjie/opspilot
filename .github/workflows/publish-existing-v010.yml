@@ -53,7 +53,11 @@ jobs:
               assert (directory/f'SHA256SUMS-{label}.txt').read_text()==f'{actual}  {name}\n'
               for file,value in p['sourceHashes'].items():
                   assert not pathlib.PurePosixPath(file).is_absolute() and '..' not in pathlib.PurePosixPath(file).parts
-                  assert digest(subprocess.check_output(['git','show',f'{sha}:{file}']))==value, file
+                  raw=subprocess.check_output(['git','show',f'{sha}:{file}'])
+                  # Windows checkout uses Git's text/CRLF conversion. Validate
+                  # Git's exact checkout bytes, not arbitrary normalization.
+                  checkout=subprocess.check_output(['git','-c',f'core.autocrlf={"true" if platform=="win32" else "false"}','cat-file','--filters',f'{sha}:{file}'])
+                  assert value in [digest(raw),digest(checkout)], file
               installed=read(root/f'desktop-evidence-{label}'/'install.json')
               assert installed['commit']==sha and installed['version']=='0.1.0'
               assert installed['platform']==platform and installed['arch']==arch
