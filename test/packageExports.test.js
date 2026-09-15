@@ -30,7 +30,8 @@ test('dependency packaging excludes local evidence and keeps explicit desktop en
   assert.deepEqual(pkg.exports, {
     './platform-action-protocol': './src/domain/model/platformActionProtocol.js',
     './host-execution-binding': './src/connector/hostExecutionBinding.js',
-    './connector-manifest': './src/connector/connectorManifest.js'
+    './connector-manifest': './src/connector/connectorManifest.js',
+    './connector-registry': './src/connector/connectorRegistry.js'
   });
   assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'README.md']);
   for (const name of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(pkg.scripts[name], undefined);
@@ -42,4 +43,10 @@ test('connector manifest consumer exposes metadata only', async () => {
   const direct = await import('../src/connector/connectorManifest.js');
   assert.deepEqual(Object.keys(api).sort(), ['assessConnectorReadiness', 'createConnectorManifest']);
   assert.equal(api.createConnectorManifest, direct.createConnectorManifest);
+});
+
+test('connector registry consumer exposes only explicit trusted registration', async () => {
+  const api = await import('opspilot/connector-registry');
+  assert.deepEqual(Object.keys(api), ['createConnectorRegistry']);
+  assert.deepEqual(api.createConnectorRegistry().list(), []);
 });
