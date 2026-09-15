@@ -29,9 +29,17 @@ test('dependency packaging excludes local evidence and keeps explicit desktop en
   assert.equal(pkg.private, true); // Git dependency only; no npm registry publication.
   assert.deepEqual(pkg.exports, {
     './platform-action-protocol': './src/domain/model/platformActionProtocol.js',
-    './host-execution-binding': './src/connector/hostExecutionBinding.js'
+    './host-execution-binding': './src/connector/hostExecutionBinding.js',
+    './connector-manifest': './src/connector/connectorManifest.js'
   });
   assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'README.md']);
   for (const name of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(pkg.scripts[name], undefined);
   assert.equal(pkg.dependencies, undefined);
+});
+
+test('connector manifest consumer exposes metadata only', async () => {
+  const api = await import('opspilot/connector-manifest');
+  const direct = await import('../src/connector/connectorManifest.js');
+  assert.deepEqual(Object.keys(api).sort(), ['assessConnectorReadiness', 'createConnectorManifest']);
+  assert.equal(api.createConnectorManifest, direct.createConnectorManifest);
 });
