@@ -9,7 +9,8 @@
   "exports": {
     "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js",
     "./host-execution-binding": "./src/connector/hostExecutionBinding.js",
-    "./connector-manifest": "./src/connector/connectorManifest.js"
+    "./connector-manifest": "./src/connector/connectorManifest.js",
+    "./connector-registry": "./src/connector/connectorRegistry.js"
   },
   "files": [
     "src/",
