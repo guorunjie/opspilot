@@ -1,0 +1,75 @@
+name: Publish existing v0.1.0 artifacts
+on:
+  push:
+    branches: [codex/publish-v010-existing-assets]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-existing-v010
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: guorunjie/opspilot
+      FROZEN_SHA: 9080c10cf4e7142b4be0015eb143916e16e9d088
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 9080c10cf4e7142b4be0015eb143916e16e9d088
+          persist-credentials: false
+      - name: Download existing accepted artifacts without rebuilding
+        run: |
+          gh api repos/guorunjie/opspilot/actions/runs/34967439093 > /tmp/run.json
+          gh api repos/guorunjie/opspilot/git/ref/tags/v0.1.0 > /tmp/tag.json
+          gh release view v0.1.0 --json assets,targetCommitish,isDraft > /tmp/release.json
+          gh run download 34967439093 --pattern 'core-*' --pattern 'desktop-evidence-*' --dir /tmp/existing
+      - name: Match installer, frozen source and actual installation receipt
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          root=pathlib.Path('/tmp/existing')
+          sha=os.environ['FROZEN_SHA']
+          read=lambda p:json.loads(pathlib.Path(p).read_text())
+          digest=lambda b:hashlib.sha256(b).hexdigest()
+          run=read('/tmp/run.json'); tag=read('/tmp/tag.json'); release=read('/tmp/release.json')
+          assert run['head_sha']==sha and run['conclusion']=='success'
+          assert tag['object']['type']=='commit' and tag['object']['sha']==sha
+          assert release['targetCommitish']==sha and not release['isDraft']
+          assert release['assets']==[], 'Existing assets require explicit review; never overwrite'
+          evidence=[]
+          for label,platform,arch,suffix in [('windows','win32','x64','win-x64.exe'),('macos','darwin','arm64','mac-arm64.dmg')]:
+              directory=root/f'core-{label}'
+              p=read(directory/f'provenance-{label}.json')
+              name=f'OpsPilot-Core-Demo-0.1.0-{suffix}'
+              assert p['commit']==sha and p['version']=='0.1.0'
+              assert p['platform']==platform and p['arch']==arch and p['installer']==name
+              assert sorted(x.name for x in directory.iterdir())==sorted([name,f'provenance-{label}.json',f'SHA256SUMS-{label}.txt'])
+              actual=digest((directory/name).read_bytes())
+              assert actual==p['sha256']
+              assert (directory/f'SHA256SUMS-{label}.txt').read_text()==f'{actual}  {name}\n'
+              for file,value in p['sourceHashes'].items():
+                  assert not pathlib.PurePosixPath(file).is_absolute() and '..' not in pathlib.PurePosixPath(file).parts
+                  assert digest(subprocess.check_output(['git','show',f'{sha}:{file}']))==value, file
+              installed=read(root/f'desktop-evidence-{label}'/'install.json')
+              assert installed['commit']==sha and installed['version']=='0.1.0'
+              assert installed['platform']==platform and installed['arch']==arch
+              assert installed['installer']==name and installed['installerSha256']==actual
+              assert installed['installedAsarSha256']==p['unpackedAsarSha256']
+              assert installed['uiScenarios']==12 and installed['uninstallPassed'] is True
+              assert installed['supplementalResetRepeat'] is True
+              assert sorted(installed['recoveryBoundaries'])==sorted(['started','reserved','written','verify-started','verify-saved'])
+              assert installed['legacyUpgrade']['oldApprovalRejected'] is True
+              assert installed['legacyUpgrade']['resetPreservedArchive'] is True
+              evidence.append({'installer':name,'size':(directory/name).stat().st_size,'sha256':actual,'sourceFileCount':len(p['sourceHashes']),'installation':installed})
+          report={'version':'0.1.0','commit':sha,'sourceRun':'https://github.com/guorunjie/opspilot/actions/runs/34967439093','scope':'Existing frozen-source artifacts matched to CI installation receipts; no rebuild or test rerun. Not real-platform, signing, Gatekeeper or unassisted-user acceptance.','platforms':evidence}
+          (root/'v010-distribution-acceptance.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Add checked release attachments without replacing assets
+        run: |
+          gh release upload v0.1.0 /tmp/existing/core-windows/* /tmp/existing/core-macos/* /tmp/existing/v010-distribution-acceptance.json
+          gh release view v0.1.0 --json assets,targetCommitish,url
