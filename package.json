@@ -8,7 +8,8 @@
   "main": "desktop/demo.cjs",
   "exports": {
     "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js",
-    "./host-execution-binding": "./src/connector/hostExecutionBinding.js"
+    "./host-execution-binding": "./src/connector/hostExecutionBinding.js",
+    "./connector-manifest": "./src/connector/connectorManifest.js"
   },
   "files": [
     "src/",
