@@ -24,6 +24,7 @@ only for old saves. Preview → explicit approval → local capability → mock
 connector → readback verification is unchanged. Recommendations never grant
 authorization and no realized-profit claim is generated.
 
-Still outstanding: generic Signal/Opportunity/Recommendation schemas, general
-Planner/Memory interfaces and Agent orchestration, executable stockout/campaign
-flows, multi-item user-facing acceptance, RPA and Enterprise integration.
+Basic Planner/Memory hooks and local/async Agent composition are implemented;
+stockout and fixed campaign mock flows also exist. Generic business schemas,
+multi-intent planning, richer Memory, general multi-item UI and desktop
+production RPA remain later work. Private host binding is not full Enterprise migration.
