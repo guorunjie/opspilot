@@ -6,6 +6,10 @@
   "type": "module",
   "description": "Local-first operations agent — isolated offline foundation",
   "main": "desktop/demo.cjs",
+  "exports": {
+    "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js"
+  },
+  "files": ["src/", "desktop/", "electron-builder.json", "LICENSE", "README.md"],
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "node --test",
