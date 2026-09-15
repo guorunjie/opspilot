@@ -2,7 +2,11 @@
 
 ## Current scope
 
-The scoped recovery path is published in the early preview `v0.1.0-dev.5`, tested in Windows x64 and macOS arm64 installed candidates. This does not mean the user's existing local installation was upgraded. Native macOS confirmation interaction and unassisted user acceptance remain pending. Real-store validation remains `WAITING_FOR_REAL_VALIDATION`.
+The scoped recovery path is included in v0.1.0 with Windows x64 and macOS arm64 installed evidence; see [current version evidence](verification.md). Existing local installations are not automatically upgraded. Native macOS confirmation interaction is unverified. Offline evidence does not establish real-store execution.
+
+普通用户独立使用尚未验证。本轮跳过，不列入验收清单、不作为发布阻断，也不标记通过。
+
+The runs below are historical development evidence, not a new release checklist.
 
 The desktop records an installation identity and the owning process for new asynchronous Demo claims. It explains unresolved ownership and disables mutation controls. When every held claim belongs to a confirmed absent process on this installation, it offers **恢复待核实记录（不重新提交）**. This is not an automatic or generic unlock.
 
@@ -61,6 +65,6 @@ Run [34907223075](https://github.com/guorunjie/opspilot/actions/runs/34907223075
 
 These are manual development candidates still labeled dev.4, not the immutable published dev.4 assets and not dev.5 release evidence. The subsequent Windows success is non-reproduction of the earlier installer crash, not proof of a root-cause fix. Keep that anomaly open and retain failure diagnostics in future builds.
 
-Verify versioned release assets and native packaged confirmation interaction, especially on macOS. Extend storage-failure coverage. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
+Current v0.1.0 versioned assets are linked to installation receipts in [verification](verification.md). Native packaged confirmation interaction on macOS and broader storage-failure coverage are not established; they are not newly added blockers for this documentation update. Historical pre-START reservations and legacy/unbound interruption recovery require a separate explicit reconciliation design; they are not made safe by this implementation. Preserve archives and reject duplicate execution throughout.
 
-Until the remaining checks pass, do not claim full desktop recovery acceptance or upgrade the immutable dev.4 release in place.
+Do not claim unrestricted production/OS power-loss recovery acceptance or modify immutable historical releases. Inherit the documented scoped recovery results without rerunning unaffected tests.

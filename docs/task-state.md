@@ -39,13 +39,15 @@ authority for legacy sessions; it is not yet removed from all consumers.
 Older dev.2 builds do not understand version 2 saves: do not downgrade against
 the same data directory or delete records to make a downgrade start.
 
-The mock target and task commit together, so a pre-submit external checkpoint
+In the legacy/synchronous mock path, target and task commit together, so a pre-submit external checkpoint
 is unnecessary for this wholly local operation. This is **not** proof of
 exactly-once remote writes. Real connectors still require a durable pre-submit
 checkpoint, reconciliation and controlled recovery before production use.
 
 The price Demo now invokes the [local capability/connector slice](local-capabilities.md).
-Multi-item partial-result UI, stockout
-and campaign execution, rollback execution/UI, Planner/Memory/Capability/RPA
-integration and Enterprise consumption remain unfinished. No real-store result
+Stockout and fixed campaign mock execution are implemented. New asynchronous
+price sessions use separately persisted checkpoints and targets; see
+[async price sessions](async-price-session.md). Generic multi-item UI, full
+rollback execution and desktop production RPA remain outside this release.
+Private host binding does not imply migration of every Enterprise module. No real-store result
 is claimed: WAITING_FOR_REAL_VALIDATION.

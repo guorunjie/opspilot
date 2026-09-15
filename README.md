@@ -10,9 +10,9 @@ OpsPilot 的目标，是把经营数据中的问题、机会和建议，真正�
 
 OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动化能力、审批与验证机制、离线演示环境，以及可扩展的 Connector 连接器体系。
 
-## Open Core 候选版
+## Open Core v0.1.0
 
-当前候选版以源码和 GitHub 自动生成的源码压缩包发布，采用 [Apache License 2.0](LICENSE)，不包含签名的生产二进制。要求 Node.js 24 或更高版本：
+当前发布包含源码、源码压缩包及 Windows x64 / macOS arm64 未签名离线 Demo 安装包，采用 [Apache License 2.0](LICENSE)。源码开发要求 Node.js 24 或更高版本：
 
 ```sh
 npm ci
@@ -29,24 +29,26 @@ npm test
 
 目前，**医药即时零售 O2O** 是 OpsPilot 的第一个真实生产落地方向，但底层架构尽量保持通用，可继续扩展到零售、电商、本地生活和其他经营自动化场景。
 
-> 发布状态：本仓库处于 OpsPilot 2.0 Foundation 建设阶段。`dev.6` 预览版支持合成价格调整、库存同步、固定活动报名三条独立模拟闭环，各自需要预览、确认、执行与回读；提供单实例保护和明确确认后的本机模拟任务恢复（不重新提交）。新增明确确认后保留旧记录并开始独立新版演示，旧授权不会继承。新建演示使用持久异步价格任务；旧记录不会自动迁移。完整恢复验收、桌面浏览器 Connector、商业仓接入和真实平台验收仍未完成；以下介绍包含计划范围。Open Core 采用 Apache-2.0。
+> 发布状态：`v0.1.0` 支持合成价格调整、库存同步、固定活动报名三条独立模拟闭环，以及明确确认后的本机模拟任务恢复和保留旧存档切换。双平台安装、12 组场景、5 个进程退出恢复点及发行资产关联已有证据，详见[版本验收记录](docs/verification.md)。私有宿主最小绑定已完成，但生产 Connector 仍为外部依赖，不能把 Demo 当作生产能力。以下 Foundation 介绍包含后续计划，不代表全部实现。
 
 ## 快速体验
 
-早期预览版 `0.1.0-dev.6`：
+当前发布 `v0.1.0`：
 
-- [Windows x64 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.6/OpsPilot-Core-Demo-0.1.0-dev.6-win-x64.exe)
-- [macOS Apple Silicon 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0-dev.6/OpsPilot-Core-Demo-0.1.0-dev.6-mac-arm64.dmg)
-- [发行说明、校验值与已知限制](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0-dev.6)
+- [Windows x64 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0/OpsPilot-Core-Demo-0.1.0-win-x64.exe)
+- [macOS Apple Silicon 安装包](https://github.com/guorunjie/opspilot/releases/download/v0.1.0/OpsPilot-Core-Demo-0.1.0-mac-arm64.dmg)
+- [发行说明、校验值与已知限制](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0)
 
-Windows 未签名，macOS 未做 Developer ID 签名或公证。如果系统阻止运行，不要关闭安全检查。当前版本用于离线 Demo 评估，不是生产可用版本，也未完成所有普通用户安装验收。
+Windows 未签名，macOS 未做 Developer ID 签名或公证。如果系统阻止运行，不要关闭安全检查。安装包用于离线 Demo；真实运行须另行接入经授权的私有宿主与生产 Connector。
+
+普通用户独立使用尚未验证。本轮跳过，不列入验收清单、不作为发布阻断，也不标记通过。
 
 安装包用户无需 Node.js 或命令行。Windows 安装后从桌面或开始菜单打开“OpsPilot Open Core Demo”；不要误开旧商业版“OpsPilot”。已有演示记录会保留，升级程序不会自动执行、复位或迁移它们。
 
 开发者从源码运行：安装 Node.js 24 或更高版本后：
 
 ```sh
-git clone https://github.com/guorunjie/opspilot.git
+git clone --branch v0.1.0 --depth 1 https://github.com/guorunjie/opspilot.git
 cd opspilot
 npm ci
 npm test
@@ -150,7 +152,6 @@ OpsPilot 不希望依靠隐藏浏览器自动化能力建立商业壁垒，而�
 - 更清晰的安装和启动入口；
 - 与真实环境完全隔离的离线 Demo；
 - 可重复、一键复位的演示流程；
-- 普通用户无需开发者讲解即可完成核心任务；
 - 渐进式真实门店接入；
 - 首次可信经营诊断；
 - “今日重点”经营机会；
@@ -234,4 +235,3 @@ OpsPilot 仍在持续演进。
 欢迎交流 OpsPilot、AI Agent、RPA、零售 O2O、连接器开发，以及真实业务自动化实践。
 
 也欢迎通过 Issue 和 Pull Request 参与项目建设。
-

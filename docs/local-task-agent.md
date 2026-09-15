@@ -1,7 +1,7 @@
 # Local Task Agent
 
 `src/agent/localTaskAgent.js` orchestrates the existing canonical Task, rule
-planner and Capability gateway. The current desktop price Demo uses it for
+planner and Capability gateway. The synchronous/legacy desktop price path uses it for
 check → propose → approve → execute → readback → verify. This is synchronous
 local orchestration, not a general LLM tool loop or production browser executor.
 
@@ -37,8 +37,9 @@ rejected, including when placed in the read role. Async hooks are rejected;
 returning a Promise from an ordinary function is also rejected but cannot undo
 side effects already started by trusted hook code.
 
-Still pending: durable asynchronous Agent execution, structured multi-intent
-planning, richer Memory adapters, browser/RPA integration,
-Enterprise dependency migration and real-store validation. Stockout sync and
+Durable offline asynchronous execution now has a separate [Async Task Agent](async-task-agent.md)
+used by new desktop price sessions. Structured multi-intent planning, richer
+Memory adapters and desktop production browser/RPA integration remain later work.
+Private host binding is not a migration of every Enterprise module. Stockout sync and
 fixed campaign enrollment now also use this runtime in the isolated Demo. These
 local tests and the offline Demo do not prove those requirements complete.

@@ -1,4 +1,31 @@
-# 早期 Demo 验证记录
+# 版本验收记录与边界
+
+## 当前发布：v0.1.0
+
+冻结提交：`9080c10cf4e7142b4be0015eb143916e16e9d088`。[发行页与安装包](https://github.com/guorunjie/opspilot/releases/tag/v0.1.0)采用 Apache-2.0。main 的文档修正不移动标签、不重建安装包；标签源码内旧文档属于冻结历史，以当前说明为准。
+
+| 范围 | 已有证据及结论 |
+| --- | --- |
+| Core 单元检查 | [同提交 CI 34967439324](https://github.com/guorunjie/opspilot/actions/runs/34967439324)：Windows、macOS、Linux Node 24 通过，直接继承 |
+| 构建、实际安装与启动 | [同提交 34967439093](https://github.com/guorunjie/opspilot/actions/runs/34967439093)：Windows x64、macOS arm64 通过；每平台价格/库存/活动共 12 场景、5 个退出恢复点、合成旧存档切换、复位重跑及卸载 |
+| 发布关联检查 | [34976132136](https://github.com/guorunjie/opspilot/actions/runs/34976132136)：仅搬运原产物，核对版本、提交、平台检出源码字节、安装包哈希及安装回执；未重建或重跑安装 |
+| 私有宿主最小绑定 | 必要 CI 通过后已审核合并；保留本地安全状态机，仅消费 Core 绑定接口，见[接入说明](consumer-integration.md) |
+| 原 V1.0 三平台实盘 | 按既有证据继承，未重新启动平台或调价；不作为开源 Demo 的生产能力证明 |
+
+公开[发行证据索引](https://github.com/guorunjie/opspilot/releases/download/v0.1.0/v010-distribution-acceptance.json)关联原安装回执。安装包 SHA-256：
+
+- Windows：`f3becb6e3f709a2fac1d9ad45a1e725f7ea31f86a36af5e3532fd7d95f8e5f0b`。
+- macOS arm64：`58309d961cbfc510b7fb1325e3f3ee5c2801583c1f391d5f19db9de0c0c38576`。
+
+原 V1.0 历史 JSON / 安装回执绑定缺口保留，与本版已关联的 CI 安装记录区分。安装测试不代表人工安装向导、Gatekeeper、系统断电、任意真实跨版本升级或生产连接器恢复。未签名/未公证，不应关闭系统安全检查。
+
+普通用户独立使用尚未验证。本轮跳过，不列入验收清单、不作为发布阻断，也不标记通过。
+
+生产 Connector 为外部私有依赖。桌面通用 BrowserConnector、完整经营模型和回滚执行属于后续范围，不因文档收尾追加开发。绑定指纹只关联结果；缺少执行/平台/门店/动作/确认指纹或逐项回读证据，必须保持 UNKNOWN。
+
+## 历史记录说明
+
+以下 dev 版本的提交、哈希、测试数量和当时限制仅用于追溯，不是当前待办清单，不能替代或覆盖上面的 v0.1.0 证据。
 
 ## 已发布预览版：0.1.0-dev.3
 
@@ -32,7 +59,7 @@ Windows 在临时 CI 中静默安装 NSIS；macOS 只读挂载 DMG 并复制应�
 
 验证对象：源码提交 `afdab9a9141b3b33c9546274e1be5fab6910db06`，版本 `0.1.0-dev.2`。这是部分 Foundation 的验证，不是整个项目完成声明。
 
-## 已验证
+### 当时已验证
 
 - GitHub Windows、macOS、Linux 的 Node.js 24 单元测试均通过，每个平台 32 项。[CI 运行记录](https://github.com/guorunjie/opspilot/actions/runs/34875458672)。CI 使用 `npm ci --ignore-scripts`，不启动桌面或验证安装包。
 - Windows 本机从公开仓库重新克隆后，默认 `npm ci`、`npm test` 和 Electron 运行时准备完成，运行时版本 42.7.0；不是从旧商业项目复制依赖目录。
@@ -42,11 +69,11 @@ Windows 在临时 CI 中静默安装 NSIS；macOS 只读挂载 DMG 并复制应�
 
 桌面验证由工作区外的 Playwright 驱动完成，测试启动器仅为应用指定临时 appData；该驱动和启动器不属于发行程序。上述独立副本验证仍在同一 Windows 主机上进行，可能使用下载缓存，不等于全新机器验收。退出发生在已保存提交之后，不是写入过程中的断电测试。
 
-## 尚未验证或未完成
+### 当时的其他限制（非本轮验收清单）
 
-- 普通用户交互安装向导、全新终端下载后的系统安全提示及非开发用户独立体验；CI 运行不能代替这些检查。
+- 交互安装向导、全新终端下载后的系统安全提示；CI 运行不能代替这些检查。
 - 可信发行者代码签名、公证，Intel macOS 安装发行与真实终端体验。
 - 通用异步 Agent/Capability、RPA、完整经营模型及商业仓依赖集成；固定合成机会闭环已在 dev.3 演示，不等于这些通用能力完成。
 - 真实平台、真实经营效果和生产级恢复：**WAITING_FOR_REAL_VALIDATION**。
 
-首次启动可能下载 Electron。安装完成或单元测试通过都不能替代桌面启动检查；模拟回读通过也不能替代真实平台验证。
+源码依赖安装需要准备 Electron 运行时。安装完成或单元测试通过都不能替代桌面启动检查；模拟回读通过也不能替代真实平台验证。
