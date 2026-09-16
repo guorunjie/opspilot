@@ -33,9 +33,10 @@ test('dependency packaging excludes local evidence and keeps explicit desktop en
     './connector-manifest': './src/connector/connectorManifest.js',
     './connector-registry': './src/connector/connectorRegistry.js',
     './source-observation': './src/domain/model/sourceObservation.js',
-    './source-opportunities': './src/domain/model/sourceOpportunities.js'
+    './source-opportunities': './src/domain/model/sourceOpportunities.js',
+    './foundation': './src/foundation.js'
   });
-  assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'docs/source-observations.md', 'README.md']);
+  assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'docs/source-observations.md', 'docs/foundation-api.md', 'docs/compensation-preview.md', 'README.md']);
   for (const name of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(pkg.scripts[name], undefined);
   assert.equal(pkg.dependencies, undefined);
 });

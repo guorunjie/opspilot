@@ -12,7 +12,8 @@
     "./connector-manifest": "./src/connector/connectorManifest.js",
     "./connector-registry": "./src/connector/connectorRegistry.js",
     "./source-observation": "./src/domain/model/sourceObservation.js",
-    "./source-opportunities": "./src/domain/model/sourceOpportunities.js"
+    "./source-opportunities": "./src/domain/model/sourceOpportunities.js",
+    "./foundation": "./src/foundation.js"
   },
   "files": [
     "src/",
@@ -20,6 +21,8 @@
     "electron-builder.json",
     "LICENSE",
     "docs/source-observations.md",
+    "docs/foundation-api.md",
+    "docs/compensation-preview.md",
     "README.md"
   ],
   "engines": {
