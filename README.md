@@ -10,7 +10,11 @@ OpsPilot 的目标，是把经营数据中的问题、机会和建议，真正�
 
 OpsPilot 包含 Agent Runtime、Capability 能力框架、浏览器 / RPA 自动化能力、审批与验证机制、离线演示环境，以及可扩展的 Connector 连接器体系。
 
-## Open Core v0.1.0
+## Open Core 源码与桌面发行
+
+`v0.1.1` 源码新增通用 [Connector 描述与就绪状态](docs/connector-manifest.md)及[宿主显式注册、只读探测接口](docs/connector-registry.md)。这是开发者接入接口，不自动提供任何平台连接器。源码与既有桌面版本不同：Windows/macOS 离线安装包仍为下方的 `v0.1.0`，不冒充包含新的宿主接入功能。发布状态以 Releases 为准，详见[本次差异与边界](docs/connector-source-release.md)。
+
+### 已发布桌面 v0.1.0
 
 当前发布包含源码、源码压缩包及 Windows x64 / macOS arm64 未签名离线 Demo 安装包，采用 [Apache License 2.0](LICENSE)。源码开发要求 Node.js 24 或更高版本：
 
