@@ -205,6 +205,8 @@ OpsPilot 不用于绕过平台的安全、授权或风控机制。
 
 ## 社区与交流
 
+开发中接口：[只读经营观测与机会识别](docs/source-observations.md)。该新增接口尚未包含在 v0.1.1 发布包中；建议不代表执行授权或生产验收。
+
 项目资料：[架构与阶段边界](docs/architecture.md) · [贡献指南](CONTRIBUTING.md) · [安全反馈](SECURITY.md) · [社区行为准则](CODE_OF_CONDUCT.md)。
 
 OpsPilot 仍在持续演进。

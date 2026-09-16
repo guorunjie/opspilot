@@ -31,9 +31,11 @@ test('dependency packaging excludes local evidence and keeps explicit desktop en
     './platform-action-protocol': './src/domain/model/platformActionProtocol.js',
     './host-execution-binding': './src/connector/hostExecutionBinding.js',
     './connector-manifest': './src/connector/connectorManifest.js',
-    './connector-registry': './src/connector/connectorRegistry.js'
+    './connector-registry': './src/connector/connectorRegistry.js',
+    './source-observation': './src/domain/model/sourceObservation.js',
+    './source-opportunities': './src/domain/model/sourceOpportunities.js'
   });
-  assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'README.md']);
+  assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'docs/source-observations.md', 'README.md']);
   for (const name of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(pkg.scripts[name], undefined);
   assert.equal(pkg.dependencies, undefined);
 });
@@ -49,4 +51,18 @@ test('connector registry consumer exposes only explicit trusted registration', a
   const api = await import('opspilot/connector-registry');
   assert.deepEqual(Object.keys(api), ['createConnectorRegistry']);
   assert.deepEqual(api.createConnectorRegistry().list(), []);
+});
+
+test('source-observation consumer exposes the same normalization function', async () => {
+  const api = await import('opspilot/source-observation');
+  const direct = await import('../src/domain/model/sourceObservation.js');
+  assert.deepEqual(Object.keys(api), ['normalizeSourceObservation']);
+  assert.equal(api.normalizeSourceObservation, direct.normalizeSourceObservation);
+});
+
+test('source-opportunities consumer exposes the same advisory planner', async () => {
+  const api = await import('opspilot/source-opportunities');
+  const direct = await import('../src/domain/model/sourceOpportunities.js');
+  assert.deepEqual(Object.keys(api), ['buildSourceOpportunities']);
+  assert.equal(api.buildSourceOpportunities, direct.buildSourceOpportunities);
 });
