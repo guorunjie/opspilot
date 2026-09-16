@@ -10,13 +10,16 @@
     "./platform-action-protocol": "./src/domain/model/platformActionProtocol.js",
     "./host-execution-binding": "./src/connector/hostExecutionBinding.js",
     "./connector-manifest": "./src/connector/connectorManifest.js",
-    "./connector-registry": "./src/connector/connectorRegistry.js"
+    "./connector-registry": "./src/connector/connectorRegistry.js",
+    "./source-observation": "./src/domain/model/sourceObservation.js",
+    "./source-opportunities": "./src/domain/model/sourceOpportunities.js"
   },
   "files": [
     "src/",
     "desktop/",
     "electron-builder.json",
     "LICENSE",
+    "docs/source-observations.md",
     "README.md"
   ],
   "engines": {
