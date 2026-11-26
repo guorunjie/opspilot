@@ -34,7 +34,8 @@ test('dependency packaging excludes local evidence and keeps explicit desktop en
     './connector-registry': './src/connector/connectorRegistry.js',
     './source-observation': './src/domain/model/sourceObservation.js',
     './source-opportunities': './src/domain/model/sourceOpportunities.js',
-    './foundation': './src/foundation.js'
+    './foundation': './src/foundation.js',
+    './verification/verifyTargetState': './src/verification/verifyTargetState.js'
   });
   assert.deepEqual(pkg.files, ['src/', 'desktop/', 'electron-builder.json', 'LICENSE', 'docs/source-observations.md', 'docs/foundation-api.md', 'docs/compensation-preview.md', 'README.md']);
   for (const name of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(pkg.scripts[name], undefined);
@@ -66,4 +67,17 @@ test('source-opportunities consumer exposes the same advisory planner', async ()
   const direct = await import('../src/domain/model/sourceOpportunities.js');
   assert.deepEqual(Object.keys(api), ['buildSourceOpportunities']);
   assert.equal(api.buildSourceOpportunities, direct.buildSourceOpportunities);
+});
+
+test('verifyTargetState consumer import and require resolve the same function', async () => {
+  const api = await import('opspilot/verification/verifyTargetState');
+  const direct = await import('../src/verification/verifyTargetState.js');
+  assert.deepEqual(Object.keys(api).sort(), ['verifyTargetState']);
+  assert.equal(typeof api.verifyTargetState, 'function');
+  assert.equal(api.verifyTargetState, direct.verifyTargetState);
+
+  const { createRequire } = await import('node:module');
+  const required = createRequire(import.meta.url)('opspilot/verification/verifyTargetState');
+  assert.equal(typeof required.verifyTargetState, 'function');
+  assert.equal(required.verifyTargetState, direct.verifyTargetState);
 });

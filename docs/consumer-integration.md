@@ -19,6 +19,8 @@ import {
 
 `opspilot/platform-action-protocol` 仍是公开兼容导出，但不作为当前私有生产宿主状态机的替换入口。根导入和未导出的私有子路径不受支持。库消费不启动 Electron、不加载凭证、不启用真实写入；桌面源码启动入口仍为 `desktop/demo.cjs`。
 
+`opspilot/verification/verifyTargetState` 导出既有的 `verifyTargetState`，与 `src/verification/verifyTargetState.js` 是同一个函数。它只比较调用方给出的期望值和回读，缺观测仍是 `UNKNOWN`，不代表授权或真实平台写入成功。这条子路径只存在于包含该导出的提交里。已经钉死的旧 commit 或 codeload tarball 在把 pin 改到该提交并重新安装依赖之前，解析不到这个包路径。
+
 ## 宿主必须保留的执行边界
 
 - 复用既有 `/api/opspilot/action-run` 的角色鉴权、确认卡、拒绝卡、幂等及执行锁；真实写入默认关闭。

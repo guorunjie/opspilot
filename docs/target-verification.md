@@ -3,6 +3,11 @@
 `src/verification/verifyTargetState.js` is the shared integer-value comparator
 used by the offline price readback and checkpoint validation. It checks exact
 plan, connector and store identifiers before comparing unique target IDs.
+Package consumers import the same function from
+`opspilot/verification/verifyTargetState` (no `.js` suffix). The package stays
+private. A dependency pinned to an older commit or codeload tarball does not
+gain this subpath when the mapping merges; that pin has to move to a commit
+that contains the export, and dependencies have to be reinstalled.
 Missing, null, non-integer or unsafe numeric observations are UNKNOWN, not zero.
 Malformed scope, duplicate or unexpected target IDs invalidate the whole read.
 An empty plan is rejected rather than vacuously verified.

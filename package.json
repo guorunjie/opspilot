@@ -13,7 +13,8 @@
     "./connector-registry": "./src/connector/connectorRegistry.js",
     "./source-observation": "./src/domain/model/sourceObservation.js",
     "./source-opportunities": "./src/domain/model/sourceOpportunities.js",
-    "./foundation": "./src/foundation.js"
+    "./foundation": "./src/foundation.js",
+    "./verification/verifyTargetState": "./src/verification/verifyTargetState.js"
   },
   "files": [
     "src/",
